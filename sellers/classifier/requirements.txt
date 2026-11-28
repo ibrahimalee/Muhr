@@ -1,0 +1,7 @@
+# MUHR seller (Python 3.11+). Exact pins = the versions the test suite runs on.
+fastapi==0.124.0
+uvicorn[standard]==0.38.0
+httpx==0.28.1
+pydantic==2.12.3
+cryptography==50.0.2
+python-dotenv==1.0.1
