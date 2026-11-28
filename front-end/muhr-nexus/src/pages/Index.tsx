@@ -191,7 +191,13 @@ export default function Index() {
         const r = await runDemoE2E({ input_text: text, seller_id: sellerId, budget_sats: budget });
         setResult(r);
         // The result card is far down the Overview page: bring it into view once it has rendered.
-        window.setTimeout(() => scrollToEl(document.querySelector('[aria-label="Your last result"]'), -90), 500);
+        let tries = 0;
+        const bringIntoView = () => {
+          const el = document.querySelector('[aria-label="Your last result"]');
+          if (el) scrollToEl(el, -90);
+          else if (tries++ < 30) window.setTimeout(bringIntoView, 100);
+        };
+        window.setTimeout(bringIntoView, 300);
         toast.success("Job settled", { description: `${sats(r.budget_sats)} sats${rates ? ` (about ${formatPkr(r.budget_sats, rates.sats_pkr)})` : ""} paid to ${sellerName(r.seller_id)}. The result is below.` });
         refetch();
       } catch (e) {

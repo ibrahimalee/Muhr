@@ -86,12 +86,21 @@ export function useSmoothScroll(enabled = true) {
   }, [enabled]);
 }
 
-/** Scroll to an element (smoothly when Lenis is running). */
+/** Scroll to an element (smoothly when Lenis is running), and make sure it lands. */
 export function scrollToEl(el: Element | null, offset = -80) {
   if (!el) return;
-  const l = (window as unknown as { __lenis?: { scrollTo: (t: Element, o: { offset: number; duration: number }) => void } }).__lenis;
-  if (l) l.scrollTo(el, { offset, duration: 1.4 });
+  type L = { scrollTo: (t: Element | number, o: Record<string, unknown>) => void };
+  const l = (window as unknown as { __lenis?: L }).__lenis;
+  if (l) l.scrollTo(el, { offset, duration: 1.4, force: true });
   else el.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" });
+  // If anything interrupted the glide (a closing dialog, a re-layout), jump the rest of the way.
+  window.setTimeout(() => {
+    const top = el.getBoundingClientRect().top;
+    if (Math.abs(top + offset) < 80) return;
+    const y = top + window.scrollY + offset;
+    if (l) l.scrollTo(y, { immediate: true, force: true });
+    else window.scrollTo({ top: y });
+  }, 2000);
 }
 
 export function scrollToTop() {
