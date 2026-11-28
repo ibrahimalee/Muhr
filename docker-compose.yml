@@ -1,9 +1,10 @@
-# Full MUHR stack: registry + both sellers + static UI (nginx).
+# Full MUHR stack: registry + three sellers + static UI (nginx).
 #
 #   docker compose up --build        then open http://localhost:${MUHR_COMPOSE_PORT:-80}
 #
 # Secrets/config come from the repo-root .env if present (optional). Outside DEMO
-# set real values for MUHR_ADMIN_KEY and both MUHR_SELLER_KEY_* variables.
+# set real values for MUHR_ADMIN_KEY and all three MUHR_SELLER_KEY_* variables.
+# A public deployment (even in DEMO) sets MUHR_PUBLIC_DEPLOY=true, which requires the same keys.
 # SQLite lives in the named volume `muhr_registry_data`.
 
 x-common-env: &common-env
@@ -11,6 +12,8 @@ x-common-env: &common-env
   MUHR_REGISTRY_BASE_URL: http://registry:8000
   MUHR_SELLER_SUMMARIZER_URL: ${MUHR_SELLER_SUMMARIZER_URL:-http://summarizer:8001}
   MUHR_SELLER_CLASSIFIER_URL: ${MUHR_SELLER_CLASSIFIER_URL:-http://classifier:8002}
+  MUHR_SELLER_URDU_URL: ${MUHR_SELLER_URDU_URL:-http://urdu:8003}
+  MUHR_PUBLIC_DEPLOY: ${MUHR_PUBLIC_DEPLOY:-false}
 
 services:
   summarizer:
@@ -43,6 +46,21 @@ services:
       - "8002"
     restart: unless-stopped
 
+  urdu:
+    build:
+      context: .
+      dockerfile: sellers/urdu/Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      <<: *common-env
+      MUHR_SELLER_ID: sel_urdu
+      MUHR_SELLER_KEY: ${MUHR_SELLER_KEY_SEL_URDU:-}
+    expose:
+      - "8003"
+    restart: unless-stopped
+
   registry:
     build:
       context: .
@@ -59,10 +77,12 @@ services:
       MUHR_TRUST_PROXY: "true"
       MUHR_SELLER_KEY_SEL_SUMMARIZER: ${MUHR_SELLER_KEY_SEL_SUMMARIZER:-}
       MUHR_SELLER_KEY_SEL_CLASSIFIER: ${MUHR_SELLER_KEY_SEL_CLASSIFIER:-}
+      MUHR_SELLER_KEY_SEL_URDU: ${MUHR_SELLER_KEY_SEL_URDU:-}
       MUHR_ADMIN_KEY: ${MUHR_ADMIN_KEY:-}
     depends_on:
       - summarizer
       - classifier
+      - urdu
     volumes:
       - muhr_registry_data:/app/data
     expose:

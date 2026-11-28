@@ -32,6 +32,7 @@ class SellerRegisterRequest(BaseModel):
     docker_image_hash: Annotated[str, Field(pattern=r"^sha256:[0-9a-f]{64}$")]
     stake_payment_hash: Optional[str] = None
     optimal_input_schema: Optional[dict] = None
+    private: bool = False
 
 
 class SellerRegisterResponse(BaseModel):
@@ -59,6 +60,7 @@ class SellerInfo(BaseModel):
     endpoint_url: str
     status: str
     last_seen: Optional[UtcDatetime] = None
+    private: bool = False
 
 
 class SellerListResponse(BaseModel):
@@ -245,10 +247,10 @@ class DisputeResponse(BaseModel):
 
 # ---- Demo ----
 class DemoRunRequest(BaseModel):
-    input_text: Annotated[str, Field(max_length=50_000)]
+    input_text: Annotated[str, Field(max_length=5_000)]
     capability: Optional[str] = None
     budget_sats: Annotated[int, Field(ge=1, le=10_000)] = 100
-    seller_id: str = "sel_summarizer"
+    seller_id: Annotated[str, Field(max_length=64)] = "sel_summarizer"
 
 
 class DemoRunResponse(BaseModel):
@@ -366,3 +368,33 @@ class ApprovalStatusResponse(BaseModel):
     request_id: str
     status: str                       # pending | approved | rejected
     approved: Optional[bool] = None   # None while pending
+
+
+# ---- Exchange rate (display only) ----
+class RatesResponse(BaseModel):
+    btc_pkr: float
+    sats_pkr: float
+    source: str
+    fetched_at: str
+    stale: bool
+
+
+# ---- Public receipt (no secrets, no content) ----
+class ReceiptResponse(BaseModel):
+    job_id: str
+    seller_id: str
+    capability: str
+    price_sats: int
+    platform_fee_sats: int
+    payment_hash: str
+    # Present only for preimage key release when the registry already holds it.
+    preimage: Optional[str] = None
+    result_hash: Optional[str] = None
+    key_commitment: Optional[str] = None
+    ciphertext_hash: Optional[str] = None
+    mode: str
+    key_release: Optional[str] = None
+    payment_verified_by: Optional[str] = None
+    settled_at: UtcDatetime
+    dispute: str  # "none" | "upheld"
+

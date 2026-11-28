@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 BUILTINS = (
     ("sel_summarizer", "summarizer"),
     ("sel_classifier", "classifier"),
+    ("sel_urdu", "translator"),
 )
 
 
@@ -28,6 +29,11 @@ def _builtin_spec(seller_id: str) -> dict:
         return dict(capability=constants.SUMMARIZER_CAPABILITY, price=constants.SUMMARIZER_PRICE_PER_UNIT,
                     unit=constants.SUMMARIZER_UNIT, stake=constants.SUMMARIZER_STAKE, url=url,
                     image="sha256:" + "0" * 63 + "1")
+    if seller_id == "sel_urdu":
+        url = constants.seller_urdu_url()
+        return dict(capability=constants.URDU_CAPABILITY, price=constants.URDU_PRICE_PER_UNIT,
+                    unit=constants.URDU_UNIT, stake=constants.URDU_STAKE, url=url,
+                    image="sha256:" + "0" * 63 + "3")
     url = constants.seller_classifier_url()
     return dict(capability=constants.CLASSIFIER_CAPABILITY, price=constants.CLASSIFIER_PRICE_PER_UNIT,
                 unit=constants.CLASSIFIER_UNIT, stake=constants.CLASSIFIER_STAKE, url=url,
@@ -35,7 +41,7 @@ def _builtin_spec(seller_id: str) -> dict:
 
 
 def seed_builtin_sellers() -> None:
-    """Create the two built-in sellers, or refresh their URLs and keys.
+    """Create the built-in sellers, or refresh their URLs and keys.
 
     Status is only ever moved INACTIVE -> ACTIVE here (the health check will
     re-mark an unreachable seller). SUSPENDED sellers stay suspended, so a
@@ -92,6 +98,7 @@ def seed_demo_dataset() -> None:
             ("task_seed_0002", "job_seed_0002", "sel_summarizer", constants.SUMMARIZER_CAPABILITY, 200, 1310),
             ("task_seed_0003", "job_seed_0003", "sel_classifier", constants.CLASSIFIER_CAPABILITY, 80, 870),
             ("task_seed_0004", "job_seed_0004", "sel_classifier", constants.CLASSIFIER_CAPABILITY, 120, 910),
+            ("task_seed_0005", "job_seed_0005", "sel_urdu", constants.URDU_CAPABILITY, 24, 1180),
         ]
         t_base = now - timedelta(hours=50)
         for i, (task_id, job_id, seller_id, cap, budget, ms) in enumerate(scenarios):

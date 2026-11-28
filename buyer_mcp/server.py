@@ -21,6 +21,7 @@ from buyer_mcp.flow import BuyerFlow, FlowError  # noqa: E402
 from buyer_mcp.lightning import LightningWallet  # noqa: E402
 from buyer_mcp.registry_client import RegistryClient, RegistryError  # noqa: E402
 from shared import schemas  # noqa: E402
+from shared.constants import env_flag  # noqa: E402
 
 # MCP speaks JSON-RPC on stdout, so logs must go to stderr.
 logging.basicConfig(level=logging.INFO, stream=sys.stderr, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -37,8 +38,18 @@ def _text(s: str) -> list[TextContent]:
     return [TextContent(type="text", text=s)]
 
 
+def lightning_send_enabled() -> bool:
+    """`lightning_send` moves the buyer's own funds to any destination, so it is off unless asked for."""
+    return env_flag("MUHR_ENABLE_LIGHTNING_SEND", False)
+
+
 @app.list_tools()
 async def list_tools() -> list[Tool]:
+    tools = _all_tools()
+    return tools if lightning_send_enabled() else [t for t in tools if t.name != "lightning_send"]
+
+
+def _all_tools() -> list[Tool]:
     return [
         Tool(name="wallet_status", description="Show the buyer wallet mode (REAL/DEMO), balance and remaining daily budget",
              inputSchema={"type": "object", "properties": {}}),
@@ -77,7 +88,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             "find_sellers": find_sellers_impl, "post_task": post_task_impl,
             "send_encrypted_job": send_encrypted_job_impl, "request_human_approval": request_human_approval_impl,
         }.get(name)
-        if handler is None:
+        if handler is None or (name == "lightning_send" and not lightning_send_enabled()):
             return _text(f"Unknown tool: {name}")
         return await handler(arguments or {})
     except (FlowError, RegistryError) as e:

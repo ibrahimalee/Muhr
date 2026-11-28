@@ -18,7 +18,7 @@ import time
 from fastapi import HTTPException, Request
 
 from registry.models import Seller, Task
-from shared import constants
+from shared import constants, startup
 from shared.crypto_utils import token_matches
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ def builtin_seller_key(seller_id: str) -> str | None:
     v = os.getenv(f"MUHR_SELLER_KEY_{seller_id.upper()}", "").strip()
     if v:
         return v
-    if constants.demo_mode():
+    if not startup.strict():
         return f"dev-insecure-key-{seller_id}"
     return None
 
@@ -60,8 +60,8 @@ def require_buyer(request: Request, task: Task | None) -> Task:
 def require_admin(request: Request) -> None:
     expected = os.getenv("MUHR_ADMIN_KEY", "").strip()
     if not expected:
-        if constants.demo_mode():
-            return  # DEMO convenience; documented in README
+        if not startup.strict():
+            return  # local DEMO convenience; a public or non-DEMO deployment must set the key
         raise HTTPException(status_code=503, detail="MUHR_ADMIN_KEY is not configured on this registry")
     got = request.headers.get(constants.HEADER_ADMIN_KEY, "")
     if not hmac.compare_digest(got.encode(), expected.encode()):

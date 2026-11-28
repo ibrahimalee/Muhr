@@ -20,12 +20,19 @@ from shared.http import async_client
 logger = logging.getLogger(__name__)
 
 
-async def _probe(client: httpx.AsyncClient, url: str) -> bool:
+async def _probe(client: httpx.AsyncClient, url: str) -> tuple[bool, bool | None]:
+    """(reachable, private). ``private`` is None when the seller did not say."""
     try:
         r = await client.get(f"{url.rstrip('/')}{constants.API_SELLER_HEALTH}")
-        return r.status_code == 200
     except Exception:  # noqa: BLE001
-        return False
+        return False, None
+    if r.status_code != 200:
+        return False, None
+    try:
+        flag = r.json().get("private")
+    except Exception:  # noqa: BLE001
+        flag = None
+    return True, (flag if isinstance(flag, bool) else None)
 
 
 async def health_check_all_sellers() -> dict[str, bool]:
@@ -38,7 +45,8 @@ async def health_check_all_sellers() -> dict[str, bool]:
 
     async with async_client(timeout=constants.HEALTH_CHECK_TIMEOUT_SECONDS) as client:
         results = await asyncio.gather(*[_probe(client, url) for _, url in targets])
-    outcome = {sid: ok for (sid, _), ok in zip(targets, results)}
+    outcome = {sid: ok for (sid, _), (ok, _p) in zip(targets, results)}
+    private = {sid: p for (sid, _), (_ok, p) in zip(targets, results)}
 
     with database.get_db() as db:
         for sid, ok in outcome.items():
@@ -46,6 +54,8 @@ async def health_check_all_sellers() -> dict[str, bool]:
             if seller is None or seller.status == SellerStatus.SUSPENDED:
                 continue
             if ok:
+                if private.get(sid) is not None:
+                    seller.private = bool(private[sid])
                 seller.consecutive_failures = 0
                 seller.last_seen = utcnow()
                 if seller.status == SellerStatus.INACTIVE:

@@ -45,14 +45,14 @@ from sqlalchemy.orm import Session  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from registry import auth, database  # noqa: E402
+from registry import auth, database, rates  # noqa: E402
 from registry.health import health_check_all_sellers_sync  # noqa: E402
 from registry.lightning import calculate_platform_fee, new_id, recompute_reputation, slash_stake, update_response_time  # noqa: E402
 from registry.models import Approval, Job, JobStatus, Seller, SellerStatus, Stake, Task, Transaction, utcnow  # noqa: E402
 from registry.seed import bootstrap  # noqa: E402
 from registry.sse import broadcaster  # noqa: E402
 from registry.sweeper import run_sweeper_safe, settle_job_row  # noqa: E402
-from shared import bolt11, constants, crypto_utils, schemas  # noqa: E402
+from shared import bolt11, constants, crypto_utils, schemas, startup  # noqa: E402
 from shared.crypto_utils import hash_token, new_token  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -132,15 +132,24 @@ def _reopen_task(db: Session, task_id: str) -> None:
         task.status = constants.TASK_OPEN if task.expires_at > utcnow() else constants.TASK_EXPIRED
 
 
+def _emit_key_released(job: Job) -> None:
+    how = ("derived from the payment preimage" if job.key_release == constants.KEY_RELEASE_PREIMAGE
+           else f"released by {job.seller_id} after its wallet saw the payment")
+    emit(constants.EVENT_KEY_RELEASED, job=job, detail=f"Result key released ({how})",
+         lightning_payment_hash=job.payment_hash, lightning_mode=job.lightning_mode)
+
+
 def _payment_tx_id(db: Session, job_id: str) -> Optional[str]:
     tx = db.query(Transaction).filter(Transaction.job_id == job_id, Transaction.type == "payment").first()
     return tx.tx_id if tx else None
 
 
-def _mark_paid(db: Session, job: Job, verified_by: str) -> tuple[str, bool]:
+def _mark_paid(db: Session, job: Job, verified_by: str, preimage: str | None = None) -> tuple[str, bool]:
     """Record a verified payment exactly once. Returns (tx_id, newly_recorded)."""
     if job.payment_verified:
         return _payment_tx_id(db, job.job_id) or "", False
+    if preimage and job.key_release == constants.KEY_RELEASE_PREIMAGE:
+        job.payment_preimage = preimage.lower()
     job.payment_verified = True
     job.payment_verified_by = verified_by
     job.paid_at = utcnow()
@@ -172,6 +181,7 @@ def _start_scheduler() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting MUHR Registry (demo_mode=%s)", constants.demo_mode())
+    startup.validate_registry_env()
     bootstrap()
     _start_scheduler()
     yield
@@ -267,7 +277,7 @@ def register_seller(request: schemas.SellerRegisterRequest, db: Session = Depend
         seller_id=seller_id, lightning_pubkey=request.lightning_pubkey, capability=request.capability,
         price_sats_per_unit=request.price_sats_per_unit, unit_definition=request.unit_definition,
         endpoint_url=request.endpoint_url.rstrip("/"), commitment_endpoint=request.commitment_endpoint,
-        docker_image_hash=request.docker_image_hash, api_key_hash=hash_token(seller_key),
+        docker_image_hash=request.docker_image_hash, api_key_hash=hash_token(seller_key), private=request.private,
         stake_sats=stake_sats, stake_verified=False,
         max_job_value=stake_sats // constants.STAKE_TO_MAX_JOB_RATIO,
         reputation_score=50.0, status=SellerStatus.ACTIVE, registered_at=now,
@@ -355,7 +365,7 @@ def get_sellers(capability: Optional[str] = None, max_price: Optional[int] = Non
         seller_id=s.seller_id, capability=s.capability, price_sats_per_unit=s.price_sats_per_unit,
         unit_definition=s.unit_definition, jobs_completed=s.jobs_completed, jobs_failed=s.jobs_failed or 0,
         stake_sats=s.stake_sats, reputation_score=s.reputation_score, avg_response_ms=s.avg_response_ms,
-        endpoint_url=s.endpoint_url, status=s.status.value, last_seen=s.last_seen,
+        endpoint_url=s.endpoint_url, status=s.status.value, last_seen=s.last_seen, private=bool(s.private),
     ) for s in sellers]
     return schemas.SellerListResponse(sellers=infos, total=len(infos), generated_at=utcnow())
 
@@ -435,6 +445,35 @@ def commit_to_job(task_id: str, body: schemas.CommitmentRequest, request: Reques
     db.commit()
     emit(constants.EVENT_COMMITMENT, job=job, detail=f"Seller {seller.seller_id} committed at {body.accepted_price_sats} sats")
     return schemas.CommitmentResponse(commitment_accepted=True, job_id=job.job_id, data_can_be_sent=True)
+
+
+@app.get("/api/rates", response_model=schemas.RatesResponse)
+def get_rates():
+    """BTC/PKR for display only. Always answers: a stale or fallback rate is flagged, never an error."""
+    return rates.cache.get()
+
+
+@app.get("/api/jobs/{job_id}/receipt", response_model=schemas.ReceiptResponse)
+def get_receipt(job_id: str, db: Session = Depends(database.get_db_session)):
+    """Public receipt for a settled job: hashes and amounts only.
+
+    Never includes buyer tokens, input or result content, result keys, or any seller/admin secret.
+    """
+    job = db.get(Job, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.status != JobStatus.SETTLED:
+        raise HTTPException(status_code=409, detail=f"Receipt is available once the job is settled (status={job.status.value})")
+    price = job.accepted_price_sats or job.budget_sats
+    preimage = job.payment_preimage if job.key_release == constants.KEY_RELEASE_PREIMAGE else None
+    return schemas.ReceiptResponse(
+        job_id=job.job_id, seller_id=job.seller_id, capability=job.capability, price_sats=price,
+        platform_fee_sats=calculate_platform_fee(price), payment_hash=job.lightning_payment_hash or job.payment_hash,
+        preimage=preimage, result_hash=job.result_hash, key_commitment=job.key_commitment,
+        ciphertext_hash=job.ciphertext_hash, mode=job.lightning_mode or "DEMO", key_release=job.key_release,
+        payment_verified_by=job.payment_verified_by, settled_at=job.settled_at or utcnow(),
+        dispute="upheld" if (job.failure_reason or "").startswith("dispute upheld") else "none",
+    )
 
 
 @app.get("/api/jobs/{job_id}", response_model=schemas.JobSummary)
@@ -558,7 +597,7 @@ def record_job_payment(job_id: str, body: schemas.JobPaymentRequest, request: Re
     if body.lightning_preimage:
         if not crypto_utils.preimage_matches(body.lightning_preimage, job.payment_hash):
             raise HTTPException(status_code=400, detail="lightning_preimage does not hash to the invoice payment_hash")
-        tx_id, new = _mark_paid(db, job, "preimage")
+        tx_id, new = _mark_paid(db, job, "preimage", body.lightning_preimage)
     elif job.payment_verified:
         tx_id, new = _payment_tx_id(db, job_id) or "", False
     else:
@@ -570,6 +609,7 @@ def record_job_payment(job_id: str, body: schemas.JobPaymentRequest, request: Re
         emit(constants.EVENT_LIGHTNING_PAID, job=job,
              detail=f"Lightning {job.lightning_mode}: {job.accepted_price_sats} sats to {job.seller_id} (verified by preimage)",
              lightning_payment_hash=job.payment_hash, lightning_mode=job.lightning_mode)
+        _emit_key_released(job)
     return schemas.JobPaymentResponse(recorded=True, tx_id=tx_id, mode=job.lightning_mode or "DEMO",
                                       verified=True, verified_by=job.payment_verified_by)
 
@@ -590,6 +630,7 @@ def confirm_job_payment(job_id: str, body: schemas.PaymentConfirmRequest, reques
         emit(constants.EVENT_LIGHTNING_PAID, job=job,
              detail=f"Lightning {job.lightning_mode}: {job.accepted_price_sats} sats received by {job.seller_id} (seller wallet)",
              lightning_payment_hash=job.payment_hash, lightning_mode=job.lightning_mode)
+        _emit_key_released(job)
     return schemas.JobPaymentResponse(recorded=True, tx_id=tx_id, mode=job.lightning_mode or "DEMO",
                                       verified=True, verified_by=job.payment_verified_by)
 

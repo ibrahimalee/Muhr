@@ -1,4 +1,4 @@
-"""MUHR seller app factory (summarizer and classifier share all protocol code).
+"""MUHR seller app factory (summarizer, classifier and translator share all protocol code).
 
 Endpoints:
   GET  /health
@@ -29,7 +29,7 @@ load_dotenv(dotenv_path=Path(__file__).resolve().parents[1] / ".env")
 
 from sellers import _invoice, _l402, llm_client  # noqa: E402
 from sellers.processing import MAX_TOKENS, EncryptedResult, ProcessingFailed, process_sealed  # noqa: E402
-from shared import constants, crypto_utils, schemas  # noqa: E402
+from shared import constants, crypto_utils, schemas, startup  # noqa: E402
 from shared.http import async_client  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SellerConfig:
-    kind: str                     # summarizer | classifier
+    kind: str                     # summarizer | classifier | translator
     seller_id: str
     capability: str
     price_per_unit: int
@@ -71,7 +71,7 @@ def _seller_key(seller_id: str) -> Optional[str]:
         v = os.getenv(name, "").strip()
         if v:
             return v
-    return f"dev-insecure-key-{seller_id}" if constants.demo_mode() else None
+    return None if startup.strict() else f"dev-insecure-key-{seller_id}"
 
 
 def _load_keypair() -> tuple[bytes, str]:
@@ -82,7 +82,18 @@ def _load_keypair() -> tuple[bytes, str]:
     return crypto_utils.generate_x25519_keypair()
 
 
+def input_chars(input_schema: dict) -> int:
+    """Characters in the (public) input description; falls back to bytes/2 for older buyers."""
+    chars = input_schema.get("chars")
+    if chars is None:
+        chars = max(1, int(input_schema.get("bytes", 1000)) // 2)
+    return max(1, int(chars))
+
+
 def quote(cfg: SellerConfig, input_schema: dict) -> int:
+    if cfg.kind == "translator":
+        # Pro-rated per 1,000 characters, never below the minimum.
+        return max(constants.URDU_MIN_PRICE, math.ceil(input_chars(input_schema) * cfg.price_per_unit / cfg.unit_size))
     if cfg.kind == "summarizer":
         tokens = max(1, int(input_schema.get("bytes", 4000)) // 4)
         units = math.ceil(tokens / cfg.unit_size)
@@ -97,7 +108,7 @@ def computation_hash(cfg: SellerConfig, task_id: str, input_schema: dict, price:
         "seller": cfg.seller_id,
         "image": os.getenv("MUHR_SELLER_IMAGE_HASH", "unpinned"),
         "isolation": os.getenv("MUHR_SELLER_ISOLATION", "none"),
-        "pipeline": llm_client.pipeline_config(cfg.kind, MAX_TOKENS[cfg.kind]),
+        "pipeline": llm_client.pipeline_config(cfg.kind, MAX_TOKENS[cfg.kind], cfg.seller_id),
         "task_id": task_id,
         "input_schema": input_schema,
         "price_sats": price,
@@ -143,6 +154,7 @@ async def _run_isolated(cfg: SellerConfig, job_id: str, sealed: dict, key: bytes
 
 
 def create_seller_app(cfg: SellerConfig) -> FastAPI:
+    startup.validate_seller_env(cfg.seller_id)
     app = FastAPI(title=f"Muhr Seller — {cfg.kind}", version="2.0.0")
     priv, pub = _load_keypair()
     state = SellerState(priv_raw=priv, pub_b64=pub)
@@ -152,11 +164,15 @@ def create_seller_app(cfg: SellerConfig) -> FastAPI:
     @app.get("/health")
     async def health() -> dict:
         return {"ok": True, "service": cfg.kind, "seller_id": cfg.seller_id, "demo_mode": constants.demo_mode(),
-                "pipeline": llm_client.pipeline_config(cfg.kind, MAX_TOKENS[cfg.kind])["pipeline"],
+                "pipeline": llm_client.pipeline_config(cfg.kind, MAX_TOKENS[cfg.kind], cfg.seller_id)["pipeline"],
+                "private": llm_client.is_private(cfg.seller_id),
                 "isolation": os.getenv("MUHR_SELLER_ISOLATION", "none")}
 
     @app.post(constants.API_SELLER_COMMIT, response_model=schemas.SellerCommitResponse)
     async def commit(req: schemas.SellerCommitRequest) -> schemas.SellerCommitResponse:
+        if cfg.kind == "translator" and input_chars(req.input_schema) > constants.URDU_MAX_INPUT_CHARS:
+            return schemas.SellerCommitResponse(computation_hash="", accepted=False, estimated_ms=0,
+                                                price_sats=0, seller_id=cfg.seller_id)
         price = quote(cfg, req.input_schema)
         if price > req.budget_sats:
             return schemas.SellerCommitResponse(computation_hash="", accepted=False, estimated_ms=0,
@@ -198,7 +214,7 @@ def create_seller_app(cfg: SellerConfig) -> FastAPI:
             if os.getenv("MUHR_SELLER_ISOLATION", "none").lower() == "docker":
                 enc = await _run_isolated(cfg, req.job_id, sealed, key, state)
             else:
-                enc = await process_sealed(cfg.kind, req.job_id, state.priv_raw, sealed, key)
+                enc = await process_sealed(cfg.kind, req.job_id, state.priv_raw, sealed, key, seller_id=cfg.seller_id)
         except (ProcessingFailed, ValueError) as e:
             await _registry_post(cfg, constants.API_JOB_FAIL.format(job_id=req.job_id),
                                  {"seller_id": cfg.seller_id, "reason": str(e)[:500]})

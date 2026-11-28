@@ -48,11 +48,13 @@ _PENDING_COLUMNS: dict[str, list[tuple[str, str]]] = {
         ("received_at", "DATETIME"),
         ("paid_at", "DATETIME"),
         ("failure_reason", "VARCHAR(500)"),
+        ("payment_preimage", "VARCHAR(64)"),
     ],
     "sellers": [
         ("api_key_hash", "VARCHAR(64)"),
         ("stake_verified", "BOOLEAN NOT NULL DEFAULT 0"),
         ("jobs_failed", "INTEGER NOT NULL DEFAULT 0"),
+        ("private", "BOOLEAN NOT NULL DEFAULT 0"),
     ],
     "transactions": [
         ("mode", "VARCHAR(8)"),

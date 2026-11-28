@@ -37,3 +37,14 @@ def classify(text: str) -> str:
         return json.dumps({"label": "general", "confidence": 0.5, "rationale": "no domain keywords found (offline classifier)"}, indent=2)
     return json.dumps({"label": label, "confidence": round(hits / total, 2),
                        "rationale": f"{hits} {label} keyword hit(s) (offline classifier)"}, indent=2)
+
+
+def translate(text: str) -> str:
+    """No translator is available offline, so say so instead of faking a translation."""
+    from sellers.llm_client import parse_translation_input
+
+    try:
+        body, _direction = parse_translation_input(text)
+    except Exception:  # noqa: BLE001
+        body = text
+    return f"[offline demo translation]\n{body}"

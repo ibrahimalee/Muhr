@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from sellers import llm_client, offline
 from shared import crypto_utils
 
-MAX_TOKENS = {"summarizer": 500, "classifier": 300}
+MAX_TOKENS = {"summarizer": 500, "classifier": 300, "translator": 1500}
 
 
 class ProcessingFailed(Exception):
@@ -31,13 +31,17 @@ class EncryptedResult:
         return self.__dict__.copy()
 
 
-async def run_pipeline(kind: str, text: str, *, offline_only: bool = False) -> str:
-    if offline_only or not llm_client.configured_providers():
-        return offline.summarize(text) if kind == "summarizer" else offline.classify(text)
+async def run_pipeline(kind: str, text: str, *, offline_only: bool = False, seller_id: str | None = None) -> str:
+    if offline_only or not llm_client.configured_providers(seller_id):
+        if kind == "summarizer":
+            return offline.summarize(text)
+        return offline.translate(text) if kind == "translator" else offline.classify(text)
     try:
         if kind == "summarizer":
-            return (await llm_client.summarize_text(text, MAX_TOKENS["summarizer"])).text
-        return (await llm_client.classify_text(text, MAX_TOKENS["classifier"])).text
+            return (await llm_client.summarize_text(text, MAX_TOKENS["summarizer"], seller_id)).text
+        if kind == "translator":
+            return (await llm_client.translate_text(text, MAX_TOKENS["translator"], seller_id)).text
+        return (await llm_client.classify_text(text, MAX_TOKENS["classifier"], seller_id)).text
     except llm_client.LLMClientError as e:
         raise ProcessingFailed(str(e)) from e
 
@@ -49,12 +53,12 @@ def encrypt_result(job_id: str, result: bytes, key: bytes) -> EncryptedResult:
 
 
 async def process_sealed(kind: str, job_id: str, priv_raw: bytes, sealed: dict, key: bytes,
-                         *, offline_only: bool = False) -> EncryptedResult:
+                         *, offline_only: bool = False, seller_id: str | None = None) -> EncryptedResult:
     try:
         text = crypto_utils.unseal(priv_raw, sealed, context=job_id).decode("utf-8", errors="replace")
     except Exception as e:  # noqa: BLE001
         raise ValueError("sealed input could not be opened (wrong key or tampered)") from e
-    result = await run_pipeline(kind, text, offline_only=offline_only)
+    result = await run_pipeline(kind, text, offline_only=offline_only, seller_id=seller_id)
     if not result.strip():
         raise ProcessingFailed("empty result")
     return encrypt_result(job_id, result.encode("utf-8"), key)

@@ -47,12 +47,17 @@ def seller_classifier_url() -> str:
     return _base_url("MUHR_SELLER_CLASSIFIER_URL", "http://127.0.0.1:8002")
 
 
+def seller_urdu_url() -> str:
+    return _base_url("MUHR_SELLER_URDU_URL", "http://127.0.0.1:8003")
+
+
 # Import-time snapshots kept for scripts that read them once.
 REGISTRY_BASE_URL = registry_base_url()
 MUHR_NEXUS_URL = _base_url("MUHR_NEXUS_URL", "http://127.0.0.1:8080")
 DASHBOARD_URL = MUHR_NEXUS_URL
 SELLER_SUMMARIZER_URL = seller_summarizer_url()
 SELLER_CLASSIFIER_URL = seller_classifier_url()
+SELLER_URDU_URL = seller_urdu_url()
 DEMO_MODE = demo_mode()
 
 # --- Pinned MDK wallet CLI (never @latest: it runs with access to wallet secrets) ---
@@ -113,6 +118,19 @@ HEALTH_CHECK_INTERVAL_SECONDS = 300
 HEALTH_CHECK_TIMEOUT_SECONDS = 5
 MAX_CONSECUTIVE_FAILURES = 2
 
+# --- Exchange rate (display only) ---
+RATES_CACHE_SECONDS = 600
+DEFAULT_FALLBACK_BTC_PKR = 25_000_000   # used only if the rate API has never answered
+
+
+def fallback_btc_pkr() -> float:
+    try:
+        v = float(os.getenv("MUHR_FALLBACK_BTC_PKR", "").strip() or DEFAULT_FALLBACK_BTC_PKR)
+        return v if v > 0 else float(DEFAULT_FALLBACK_BTC_PKR)
+    except ValueError:
+        return float(DEFAULT_FALLBACK_BTC_PKR)
+
+
 # --- Budget ---
 DEFAULT_DAILY_BUDGET_SATS = 10000
 
@@ -126,6 +144,14 @@ CLASSIFIER_CAPABILITY = "data_classification"
 CLASSIFIER_PRICE_PER_UNIT = 5
 CLASSIFIER_UNIT = "per 100 items"
 CLASSIFIER_STAKE = 10000
+
+URDU_CAPABILITY = "urdu_translation"
+URDU_PRICE_PER_UNIT = 8
+URDU_UNIT = "per 1000 characters"
+URDU_UNIT_CHARS = 1000
+URDU_MIN_PRICE = 5
+URDU_STAKE = 10000
+URDU_MAX_INPUT_CHARS = 5000
 
 DEFAULT_DEMO_STAKE_SATS = 10000
 
@@ -161,6 +187,7 @@ EVENT_DATA_SENT = "data_sent"
 EVENT_RESULT_DELIVERED = "result_delivered"
 EVENT_PAYMENT_SETTLED = "payment_settled"
 EVENT_LIGHTNING_PAID = "lightning_paid"
+EVENT_KEY_RELEASED = "key_released"          # result key available to the buyer once payment is verified
 EVENT_REPUTATION_UPDATED = "reputation_updated"
 EVENT_STAKE_SLASHED = "stake_slashed"
 EVENT_STAKE_DEPOSITED = "stake_deposited"

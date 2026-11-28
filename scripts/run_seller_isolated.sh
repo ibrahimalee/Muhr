@@ -7,7 +7,7 @@
 # pipeline and returns only the encrypted result. The host process never sees
 # plaintext, and the code that does see it has no network to leak it through.
 #
-# Usage: ./scripts/run_seller_isolated.sh <summarizer|classifier> [port]
+# Usage: ./scripts/run_seller_isolated.sh <summarizer|classifier|urdu> [port]
 
 set -euo pipefail
 
@@ -15,7 +15,8 @@ KIND="${1:-}"
 case "$KIND" in
   summarizer) DEFAULT_PORT=8001 ;;
   classifier) DEFAULT_PORT=8002 ;;
-  *) echo "usage: $0 <summarizer|classifier> [port]" >&2; exit 64 ;;
+  urdu) DEFAULT_PORT=8003 ;;
+  *) echo "usage: $0 <summarizer|classifier|urdu> [port]" >&2; exit 64 ;;
 esac
 PORT="${2:-$DEFAULT_PORT}"
 

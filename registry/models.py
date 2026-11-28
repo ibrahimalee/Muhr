@@ -47,6 +47,8 @@ class Seller(Base):
     api_key_hash = Column(String(64), nullable=True)
     stake_sats = Column(Integer, nullable=False, default=0)
     stake_verified = Column(Boolean, nullable=False, default=False)
+    # True when the seller runs every job on a local model (nothing goes to a hosted provider).
+    private = Column(Boolean, nullable=False, default=False)
     max_job_value = Column(Integer, nullable=False, default=0)
     jobs_completed = Column(Integer, nullable=False, default=0)
     jobs_failed = Column(Integer, nullable=False, default=0)
@@ -97,6 +99,8 @@ class Job(Base):
     key_release = Column(String(32), nullable=True)
     bolt11 = Column(Text, nullable=True)
     lightning_payment_hash = Column(String(64), nullable=True)
+    # Only kept when the buyer proved payment with the preimage; shown on the public receipt.
+    payment_preimage = Column(String(64), nullable=True)
     lightning_mode = Column(String(8), nullable=True)
     payment_verified = Column(Boolean, nullable=False, default=False)
     payment_verified_by = Column(String(32), nullable=True)
