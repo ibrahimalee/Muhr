@@ -52,7 +52,7 @@ function Words({ text, className }: { text: string; className?: string }) {
 
 /** True when the pinned, scroll-driven version should run. */
 function useCinematic() {
-  const q = "(min-width: 1024px) and (min-height: 640px) and (prefers-reduced-motion: no-preference)";
+  const q = "(min-width: 768px) and (min-height: 520px) and (prefers-reduced-motion: no-preference)";
   const [on, setOn] = useState(() => typeof window !== "undefined" && window.matchMedia(q).matches);
   useEffect(() => {
     const mq = window.matchMedia(q);
@@ -66,7 +66,7 @@ function useCinematic() {
 function Hero({ onRun, cinematic }: { onRun: () => void; cinematic: boolean }) {
   return (
     <div data-hero>
-      <h1 className="type-wide max-w-[19ch] text-[2.1rem] font-extrabold leading-[1] tracking-[-0.02em] sm:text-[2.8rem] lg:text-[3.1rem] xl:text-[3.5rem]">
+      <h1 className="type-wide max-w-[19ch] text-[2.1rem] font-extrabold leading-[1] tracking-[-0.02em] sm:text-[2.8rem] md:text-[2.1rem] lg:text-[3.1rem] xl:text-[3.5rem]">
         <Words text={HEADLINE} />
       </h1>
       <div data-hero-rest>
@@ -224,6 +224,7 @@ export function ProtocolStory({ data, onRun }: { data: SceneData; onRun: () => v
       // 5.3 – 7.6: Paid.
       showAct(tl, 2, 5.6);
       tl.to(tags, { x: 60, autoAlpha: 0, stagger: 0.08, duration: 0.5, ease: "power2.in" }, 5.4)
+        .set(tags, { display: "none" }, 6.2) // out of the layout once faded, so they never add a sideways scrollbar
         .to([env, seal], { rotateY: -6, rotateX: 2, x: 0, duration: 0.8 }, 5.5)
         .to(invoice, { y: 0, rotateX: 0, autoAlpha: 1, duration: 0.7, ease: "power3.out" }, 5.7)
         .to(arc ?? {}, { opacity: 1, duration: 0.3 }, 6.3)
@@ -300,8 +301,8 @@ export function ProtocolStory({ data, onRun }: { data: SceneData; onRun: () => v
   return (
     <section ref={root} className="relative -mt-6" aria-label="How a job works">
       <div data-pin className="relative flex h-[100svh] items-center">
-        <div className="grid w-full items-center gap-10 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-          <div className="relative min-h-[420px]">
+        <div className="grid w-full items-center gap-6 md:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:gap-10">
+          <div className="relative min-h-[360px] lg:min-h-[420px]">
             <div className="absolute inset-0 flex items-center">
               <Hero onRun={onRun} cinematic />
             </div>
@@ -317,7 +318,7 @@ export function ProtocolStory({ data, onRun }: { data: SceneData; onRun: () => v
                     <span className="font-semibold">{a.name}</span>
                     <span className="text-graphite">of four</span>
                   </div>
-                  <h2 className="type-wide mt-4 max-w-[16ch] text-[2.4rem] font-extrabold leading-[1.02] tracking-[-0.015em] xl:text-[2.9rem]">
+                  <h2 className="type-wide mt-4 max-w-[16ch] text-[1.7rem] font-extrabold leading-[1.02] tracking-[-0.015em] lg:text-[2.4rem] xl:text-[2.9rem]">
                     <Words text={a.title} />
                   </h2>
                   <p data-act-body className={cn("mt-5 max-w-[44ch] text-[1.0625rem] leading-relaxed text-ink-soft")}>
