@@ -13,21 +13,23 @@ money moves.
 
 ## 1. Backend on Hugging Face
 
-The free Space type is **Gradio**. It runs any Python program, so a small `app.py` downloads this
-repository, installs the pinned requirements into its own virtual environment and starts the
-backend. (Docker Spaces are a paid option on some accounts; a Dockerfile for them is in
+Hugging Face has no free normal server hardware for new Gradio or Docker Spaces. The one free
+option is **ZeroGPU**, which a free personal account can host (up to 2 Spaces; the account needs a
+verified email and must be at least 30 days old). Nothing here uses a GPU, so the app only has to
+satisfy ZeroGPU's rules: it is a Gradio app, and it carries one placeholder GPU function that is
+never called. (A Dockerfile for accounts that do have Docker Spaces is in
 [`deploy/huggingface-docker/`](../deploy/huggingface-docker/).)
 
-1. Create an account at huggingface.co, then **New Space**: any name, **SDK: Gradio**, template
-   **Blank**, hardware **CPU basic (free)**, visibility **Public**.
+1. Log in at huggingface.co, then **New Space**: any name, **SDK: Gradio**, template **Blank**,
+   hardware **ZeroGPU** (the free choice), visibility **Public**.
 2. In the Space, **Files → Add file → Upload files**, and upload the two files from
    [`deploy/huggingface/`](../deploy/huggingface/): `app.py` and `README.md`. Replace the template's
-   own `app.py` and `README.md`. The README header tells Hugging Face to run `app.py` on Python 3.11.
+   own `app.py` and `README.md`. The README header tells Hugging Face to run `app.py` on Python 3.12.
 3. **Settings → Variables and secrets**, add a **variable**:
 
    | Name | Value |
    | --- | --- |
-   | `MUHR_CORS_ALLOW_ORIGINS` | your Vercel address, e.g. `https://muhr.vercel.app` (comma-separate several) |
+   | `MUHR_CORS_ALLOW_ORIGINS` | your Vercel address, e.g. `https://muhr.vercel.app` (comma-separate several), or `*` while testing |
 
    Optional **secrets**: `GROQ_API_KEY` and `GEMINI_API_KEY` for real AI answers. Leave them out and
    the sellers use the built-in offline pipeline. The admin key and seller keys are generated on every
@@ -35,12 +37,16 @@ backend. (Docker Spaces are a paid option on some accounts; a Dockerfile for the
    as secrets only if you want fixed values.
 4. The Space starts (the first start takes a couple of minutes: it downloads the code and installs
    the packages; watch **Logs**). When it says *Running*, open
-   `https://<user>-<space>.hf.space/health`. It should answer `{"status":"healthy",...}`.
-   Check `/api/sellers` too: three active sellers.
+   `https://<user>-<space>.hf.space/health`. It should answer `{"status":"healthy",...}`; until the
+   backend is up it answers 503 with a short message. Check `/api/sellers` too: three active sellers.
+   The Space's home page is a small status page.
 
-`app.py` hands over to `scripts/run_space.py`, which starts the three sellers on localhost, then the
-registry on the public port, and exits if any of them stops so Hugging Face restarts it. To run a
-fork or another branch, set the variables `MUHR_REPO_URL` and `MUHR_REPO_REF`.
+How it works: `app.py` serves the public port. It forwards `/api/*` and `/health` to the real backend
+and shows a status page everywhere else. In the background it downloads this repository, installs
+the pinned requirements into its own virtual environment, and runs `scripts/run_space.py` on an
+internal port; that script starts the three sellers and the registry, and exits if any of them stops.
+`app.py` then restarts it. To run a fork or another branch, set the variables `MUHR_REPO_URL` and
+`MUHR_REPO_REF`.
 
 ## 2. Dashboard on Vercel
 
