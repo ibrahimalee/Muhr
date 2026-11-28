@@ -1,0 +1,12 @@
+{
+  "name": "muhr-front-end",
+  "private": true,
+  "description": "The MUHR UI app is in the muhr-nexus/ folder. This file lets you run npm from front-end/ without ENOENT errors.",
+  "scripts": {
+    "postinstall": "npm install --prefix muhr-nexus",
+    "dev": "npm run dev --prefix muhr-nexus",
+    "build": "npm run build --prefix muhr-nexus",
+    "preview": "npm run preview --prefix muhr-nexus",
+    "lint": "npm run lint --prefix muhr-nexus"
+  }
+}
