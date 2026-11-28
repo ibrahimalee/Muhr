@@ -17,4 +17,6 @@ The registry must be running on port 8000 (`python -m uvicorn registry.main:app 
 - `npm test` runs the unit tests.
 - `npm run lint` runs ESLint.
 
-Set `VITE_SPLINE_SCENE` to a Spline scene URL to show a 3D layer behind the envelope; leave it unset to skip it.
+The Spline 3D layer is off by default in every build, development and production. It only appears (and its runtime is only downloaded) when `VITE_SPLINE_SCENE` is explicitly set to a scene URL.
+
+Open `/?pitch=1` (or press `P`) for the single-screen pitch layout, and `/receipt/<job_id>` for a job's public receipt.
