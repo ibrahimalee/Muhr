@@ -1,0 +1,84 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+/lib/
+/lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+registry/venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment Variables
+.env
+.env.local
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# JS dependencies
+**/node_modules/
+
+# Front-end build output
+front-end/muhr-nexus/dist/
+**/dist/
+
+**/.next/
+
+# Development/Planning files (not needed in repo)
+IMPLEMENTATION_SUMMARY.md
+TESTING_GUIDE.md
+TEST_README.md
+muhr_member_A.md
+muhr_member_B.md
+test_results.json
+quick_test.py
+test_all_tasks.py
+scratch.py
+scratch*.py
+
+# Generated reports (local verification)
+SYSTEM_TEST_RESULTS.md
+FINAL_TEST_REPORT.md
+REAL_DATA_VERIFICATION.md
+REAL_MONEY_READINESS.md
+
+# Local wallet copies and mnemonics (MDK / backup script output)
+secrets/
+
+# Pytest cache
+.pytest_cache/
