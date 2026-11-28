@@ -1,7 +1,7 @@
 # Free hosting: dashboard on Vercel, backend on a Hugging Face Space
 
 The dashboard is a static site, so Vercel hosts it. The registry and the three sellers need a
-long-running process, so they run together in one Docker Space on Hugging Face. Both have a free
+long-running process, so they run together in one Space on Hugging Face. Both have a free
 plan and neither asks for a card. The deployment runs in **demo mode**: invoices are synthetic and no
 money moves.
 
@@ -13,12 +13,16 @@ money moves.
 
 ## 1. Backend on Hugging Face
 
-1. Create an account at huggingface.co, then **New Space**: any name, **SDK: Docker** (Blank
-   template), **Public**, CPU basic (free).
-2. In the Space, **Files → Add file**, and upload the two files from
-   [`deploy/huggingface/`](../deploy/huggingface/): `Dockerfile` and `README.md`. The README has the
-   header that tells Hugging Face to use port 7860. Nothing else needs uploading: the Dockerfile
-   fetches the code from the public GitHub repository while building.
+The free Space type is **Gradio**. It runs any Python program, so a small `app.py` downloads this
+repository, installs the pinned requirements into its own virtual environment and starts the
+backend. (Docker Spaces are a paid option on some accounts; a Dockerfile for them is in
+[`deploy/huggingface-docker/`](../deploy/huggingface-docker/).)
+
+1. Create an account at huggingface.co, then **New Space**: any name, **SDK: Gradio**, template
+   **Blank**, hardware **CPU basic (free)**, visibility **Public**.
+2. In the Space, **Files → Add file → Upload files**, and upload the two files from
+   [`deploy/huggingface/`](../deploy/huggingface/): `app.py` and `README.md`. Replace the template's
+   own `app.py` and `README.md`. The README header tells Hugging Face to run `app.py` on Python 3.11.
 3. **Settings → Variables and secrets**, add a **variable**:
 
    | Name | Value |
@@ -29,12 +33,14 @@ money moves.
    the sellers use the built-in offline pipeline. The admin key and seller keys are generated on every
    start; set `MUHR_ADMIN_KEY` and `MUHR_SELLER_KEY_SEL_SUMMARIZER`, `_SEL_CLASSIFIER`, `_SEL_URDU`
    as secrets only if you want fixed values.
-4. The Space builds (a few minutes; watch **Logs**). When it says *Running*, open
+4. The Space starts (the first start takes a couple of minutes: it downloads the code and installs
+   the packages; watch **Logs**). When it says *Running*, open
    `https://<user>-<space>.hf.space/health`. It should answer `{"status":"healthy",...}`.
    Check `/api/sellers` too: three active sellers.
 
-The container runs `scripts/run_space.py`, which starts the three sellers on localhost, then the
-registry on the public port, and exits if any of them stops so Hugging Face restarts it.
+`app.py` hands over to `scripts/run_space.py`, which starts the three sellers on localhost, then the
+registry on the public port, and exits if any of them stops so Hugging Face restarts it. To run a
+fork or another branch, set the variables `MUHR_REPO_URL` and `MUHR_REPO_REF`.
 
 ## 2. Dashboard on Vercel
 
@@ -63,7 +69,6 @@ should show a green seal.
   with the built-in sample data. Jobs from earlier sessions are gone.
 - **No per-job containers.** Docker is not available inside a Space, so the optional isolated worker
   (`MUHR_SELLER_ISOLATION=docker`) is off. Jobs run in-process.
-- **Public repository.** The Dockerfile clones the repository while building, so it must be public.
-  For a private one, upload the project files to the Space instead and replace the `git clone` line
-  with `COPY . .`.
+- **Public repository.** `app.py` downloads the code from GitHub, so the repository must be public.
+- **Slow restarts.** Every start downloads the code and installs packages again (about two minutes).
 - **Real Lightning payments** are not part of this setup. See [`WALLET_FUNDING.md`](WALLET_FUNDING.md).
