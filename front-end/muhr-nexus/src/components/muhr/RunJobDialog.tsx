@@ -42,13 +42,21 @@ export function RunJobDialog({
     if (active.length && !active.some((s) => s.seller_id === sellerId)) setSellerId(active[0]!.seller_id);
   }, [active, sellerId]);
 
+  // The page behind runs smooth scrolling that would otherwise eat the wheel: pause it while the dialog is open.
+  useEffect(() => {
+    if (!open) return;
+    const l = (window as unknown as { __lenis?: { stop: () => void; start: () => void } }).__lenis;
+    l?.stop();
+    return () => l?.start();
+  }, [open]);
+
   const chosen = active.find((s) => s.seller_id === sellerId);
   const isUrdu = chosen?.capability === "urdu_translation";
   const direction = picked ?? guessDirection(text);
 
   return (
     <Dialog open={open} onOpenChange={(v) => !busy && onOpenChange(v)}>
-      <DialogContent className="max-w-2xl gap-5">
+      <DialogContent data-lenis-prevent className="flex max-h-[92dvh] max-w-2xl flex-col gap-4">
         <DialogHeader>
           <DialogTitle className="type-wide text-2xl font-bold">Run a job</DialogTitle>
           <DialogDescription>
@@ -57,6 +65,7 @@ export function RunJobDialog({
           </DialogDescription>
         </DialogHeader>
 
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto pr-1" data-lenis-prevent>
         <fieldset>
           <legend className="mb-2 text-sm font-semibold">Seller</legend>
           {active.length === 0 ? (
@@ -108,7 +117,7 @@ export function RunJobDialog({
             id="job-input"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            rows={7}
+            rows={5}
             className="w-full resize-y rounded-[4px] border border-rule-strong bg-paper/60 p-3 text-sm leading-relaxed outline-none focus:border-ink"
           />
           <p className="mt-1 text-2xs text-graphite">Sealed to the seller&rsquo;s key before it leaves. The registry only sees its size.</p>
@@ -169,8 +178,9 @@ export function RunJobDialog({
             The registry can&rsquo;t reach the summarizer right now, so this may fail. Check that the sellers are running.
           </p>
         ) : null}
+        </div>
 
-        <DialogFooter className="gap-2 sm:gap-2">
+        <DialogFooter className="shrink-0 gap-2 sm:gap-2">
           <Button variant="ghost" type="button" onClick={() => onOpenChange(false)} disabled={busy}>
             Cancel
           </Button>
