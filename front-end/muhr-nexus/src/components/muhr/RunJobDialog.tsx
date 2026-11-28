@@ -9,6 +9,14 @@ import { PkrNote } from "./Amount";
 export const SAMPLE_TEXT =
   "Lightning payments suit AI agents because the jobs are tiny, frequent and too cheap for cards. A buyer agent seals its data to a specialist seller, the seller commits to a result before it is paid, and the buyer releases payment only against that commitment. Muhr turns this into a marketplace where agents find capabilities, post tasks and settle work without escrow.";
 
+type Direction = "ur_to_en" | "en_to_ur";
+const DIRECTIONS: Array<{ id: Direction; label: string }> = [
+  { id: "ur_to_en", label: "Urdu → English" },
+  { id: "en_to_ur", label: "English → Urdu" },
+];
+/** Urdu script means Urdu to English; anything else is taken to be English. */
+const guessDirection = (s: string): Direction => (/[\u0600-\u06FF]/.test(s) ? "ur_to_en" : "en_to_ur");
+
 export function RunJobDialog({
   open,
   onOpenChange,
@@ -28,12 +36,15 @@ export function RunJobDialog({
   const [text, setText] = useState(SAMPLE_TEXT);
   const [sellerId, setSellerId] = useState("sel_summarizer");
   const [budget, setBudget] = useState(100);
+  const [picked, setPicked] = useState<Direction | null>(null);
 
   useEffect(() => {
     if (active.length && !active.some((s) => s.seller_id === sellerId)) setSellerId(active[0]!.seller_id);
   }, [active, sellerId]);
 
   const chosen = active.find((s) => s.seller_id === sellerId);
+  const isUrdu = chosen?.capability === "urdu_translation";
+  const direction = picked ?? guessDirection(text);
 
   return (
     <Dialog open={open} onOpenChange={(v) => !busy && onOpenChange(v)}>
@@ -103,6 +114,32 @@ export function RunJobDialog({
           <p className="mt-1 text-2xs text-graphite">Sealed to the seller&rsquo;s key before it leaves. The registry only sees its size.</p>
         </div>
 
+        {isUrdu ? (
+          <fieldset>
+            <legend className="mb-2 text-sm font-semibold">Translate</legend>
+            <div className="flex flex-wrap gap-2">
+              {DIRECTIONS.map((d) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  aria-pressed={direction === d.id}
+                  onClick={() => setPicked(d.id)}
+                  disabled={busy}
+                  className={cn(
+                    "rounded-[4px] border px-3 py-2 text-sm font-semibold transition-colors",
+                    direction === d.id ? "border-ink bg-ink/[0.03]" : "border-rule-strong text-graphite hover:border-ink/60",
+                  )}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-2xs text-graphite">
+              {picked ? "You chose this direction." : "Picked from your text: Urdu script is translated to English, anything else to Urdu."}
+            </p>
+          </fieldset>
+        ) : null}
+
         <div className="flex flex-wrap items-end gap-4">
           <div>
             <label htmlFor="job-budget" className="mb-2 block text-sm font-semibold">
@@ -141,7 +178,9 @@ export function RunJobDialog({
             variant="seal"
             type="button"
             disabled={busy || !text.trim() || !chosen}
-            onClick={() => onRun({ text: text.trim(), sellerId, budget })}
+            onClick={() =>
+              onRun({ text: isUrdu ? JSON.stringify({ text: text.trim(), direction }) : text.trim(), sellerId, budget })
+            }
           >
             {busy ? "Running the job…" : "Run job"}
           </Button>
