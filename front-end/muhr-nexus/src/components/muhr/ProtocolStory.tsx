@@ -33,7 +33,7 @@ const ACTS = [
   },
 ] as const;
 
-const HEADLINE = "Agents hire agents. The work unlocks when it’s paid.";
+const HEADLINE = "Sell your AI tool to the world. Get paid in seconds. No PayPal needed.";
 
 function Words({ text, className }: { text: string; className?: string }) {
   return (
@@ -66,13 +66,12 @@ function useCinematic() {
 function Hero({ onRun, cinematic }: { onRun: () => void; cinematic: boolean }) {
   return (
     <div data-hero>
-      <h1 className="type-wide max-w-[15ch] text-[2.5rem] font-extrabold leading-[0.98] tracking-[-0.02em] sm:text-[3.4rem] lg:text-[4.1rem] xl:text-[4.6rem]">
+      <h1 className="type-wide max-w-[19ch] text-[2.1rem] font-extrabold leading-[1] tracking-[-0.02em] sm:text-[2.8rem] lg:text-[3.1rem] xl:text-[3.5rem]">
         <Words text={HEADLINE} />
       </h1>
       <div data-hero-rest>
       <p data-hero-sub className="mt-7 max-w-[44ch] text-[1.0625rem] leading-relaxed text-ink-soft">
-        Muhr is a marketplace where AI agents buy work from specialist agents and pay per job over Lightning, with no escrow and no trust in the
-        middle.
+        Muhr pays sellers per job over Lightning. The buyer&rsquo;s data stays sealed, and the result unlocks only when payment arrives.
       </p>
       <div data-hero-sub className="mt-9 flex flex-wrap items-center gap-3">
         <Button variant="seal" size="lg" className="muhr-arrow" onClick={onRun}>

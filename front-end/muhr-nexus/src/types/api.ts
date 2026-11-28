@@ -40,6 +40,8 @@ export interface SellerInfo {
   endpoint_url: string;
   status: string;
   last_seen: string | null;
+  /** True when every job runs on a local model, so the input never reaches a hosted provider. */
+  private?: boolean;
 }
 
 export interface SellerListResponse {
@@ -232,4 +234,24 @@ export interface JobListResponse {
   jobs: JobSummary[];
   total: number;
   generated_at: string;
+}
+
+/** GET /api/jobs/{id}/receipt: public fields only (no keys, tokens or content). */
+export interface ReceiptResponse {
+  job_id: string;
+  seller_id: string;
+  capability: string;
+  price_sats: number;
+  platform_fee_sats: number;
+  payment_hash: string;
+  /** Present only for preimage key release when the registry already holds it. */
+  preimage: string | null;
+  result_hash: string | null;
+  key_commitment: string | null;
+  ciphertext_hash: string | null;
+  mode: "REAL" | "DEMO" | string;
+  key_release: string | null;
+  payment_verified_by: string | null;
+  settled_at: string;
+  dispute: "none" | "upheld" | string;
 }

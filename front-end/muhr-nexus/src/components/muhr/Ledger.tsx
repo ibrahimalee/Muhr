@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import { clockTime, eventLabel, eventTone, sats, shortHash } from "@/lib/format";
 import type { FeedEvent } from "@/types/api";
 import { EmptyNote, SectionHead } from "./primitives";
+import { Amount } from "./Amount";
 
 const feedStateText = {
   open: "Live",
@@ -56,7 +57,7 @@ export function Ledger({ events, status, limit = 60, bare }: { events: FeedEvent
                       <span className="hash text-xs text-ink-soft">{ref ? shortHash(ref, 10, 4) : "–"}</span>
                     </td>
                     <td className="num whitespace-nowrap py-2.5 pl-3 pr-5 text-right align-top font-medium">
-                      {e.amount_sats == null ? <span className="text-graphite">–</span> : sats(e.amount_sats)}
+                      <Amount sats={e.amount_sats} unit={false} align="right" />
                     </td>
                   </tr>
                 );

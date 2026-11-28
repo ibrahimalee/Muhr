@@ -1,5 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Search } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ArrowRight, Search } from "lucide-react";
+import { receiptPath } from "@/lib/receipt";
 import { gsap, prefersReducedMotion } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { STAGES, stageOfJob, capabilityLabel, clockTime, relativeTime, sats, shortHash, statusTone } from "@/lib/format";
@@ -7,6 +9,7 @@ import type { JobSummary } from "@/types/api";
 import { EmptyNote, HashField, ModeMark, StatusMark } from "./primitives";
 import { Segmented } from "./Segmented";
 import { WaxSeal } from "./WaxSeal";
+import { Amount, PkrNote } from "./Amount";
 
 type FilterId = "all" | "open" | "settled" | "broken";
 
@@ -147,15 +150,16 @@ function JobDetail({ job, sellerName }: { job: JobSummary; sellerName: string })
 
       <dl className="mt-5 grid grid-cols-3 border-y border-rule text-sm">
         {[
-          ["Price", `${sats(price)}`, "sats"],
-          ["Budget", `${sats(job.budget_sats)}`, "sats"],
-          ["Turnaround", latency != null ? latency.toFixed(1) : "–", latency != null ? "s" : ""],
-        ].map(([k, v, u], i) => (
+          ["Price", `${sats(price)}`, "sats", price],
+          ["Budget", `${sats(job.budget_sats)}`, "sats", job.budget_sats],
+          ["Turnaround", latency != null ? latency.toFixed(1) : "–", latency != null ? "s" : "", null],
+        ].map(([k, v, u, raw], i) => (
           <div key={k} className={cn("py-3.5", i > 0 && "border-l border-rule pl-4")}>
             <dt className="text-xs text-graphite">{k}</dt>
             <dd className="mt-1">
               <span className="num text-xl font-semibold tracking-tight">{v}</span>
               {u ? <span className="ml-1 text-xs text-graphite">{u}</span> : null}
+              {raw != null ? <PkrNote sats={Number(raw)} className="mt-0.5 block text-xs" /> : null}
             </dd>
           </div>
         ))}
@@ -190,6 +194,14 @@ function JobDetail({ job, sellerName }: { job: JobSummary; sellerName: string })
           <dd className={job.payment_verified ? "text-settled" : "text-graphite"}>{job.payment_verified ? "Yes, recorded once" : "Not yet"}</dd>
         </div>
       </dl>
+      {settled ? (
+        <Link
+          to={receiptPath(job.job_id)}
+          className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-ink underline decoration-seal decoration-2 underline-offset-4 hover:text-seal"
+        >
+          View receipt <ArrowRight className="size-4" aria-hidden />
+        </Link>
+      ) : null}
     </article>
   );
 }
@@ -296,7 +308,9 @@ export function JobsView({ jobs, sellerName, loading }: { jobs: JobSummary[] | u
                         <span className="hash block text-2xs text-graphite">{shortHash(j.job_id, 12, 4)}</span>
                       </td>
                       <td className="hidden px-3 py-2.5 text-ink-soft md:table-cell">{sellerName(j.seller_id)}</td>
-                      <td className="num px-3 py-2.5 text-right font-medium">{sats(j.accepted_price_sats ?? j.budget_sats)}</td>
+                      <td className="px-3 py-2.5 text-right font-medium">
+                        <Amount sats={j.accepted_price_sats ?? j.budget_sats} unit={false} align="right" />
+                      </td>
                       <td className="px-3 py-2.5">
                         <StatusMark status={j.status} />
                       </td>

@@ -1,5 +1,6 @@
 import { API_CONFIG, API_ENDPOINTS } from "@/config/api";
 import { APIError, apiClient, NetworkError } from "@/lib/api-client";
+import type { Rates } from "@/lib/pkr";
 import type {
   BuyerWalletStatus,
   DemoHealthResponse,
@@ -8,6 +9,7 @@ import type {
   FeedEvent,
   JobListResponse,
   MarketStats,
+  ReceiptResponse,
   SellerListResponse,
   TaskPostRequest,
   TaskPostResponse,
@@ -58,6 +60,22 @@ export async function getJobs(limit: number): Promise<JobListResponse> {
     return await apiClient.get<JobListResponse>(API_ENDPOINTS.JOBS, {
       limit: String(Math.max(1, Math.min(500, Math.floor(limit)))),
     });
+  } catch (error) {
+    throw toMuhrError(error);
+  }
+}
+
+export async function getRates(): Promise<Rates> {
+  try {
+    return await apiClient.get<Rates>(API_ENDPOINTS.RATES);
+  } catch (error) {
+    throw toMuhrError(error);
+  }
+}
+
+export async function getReceipt(jobId: string): Promise<ReceiptResponse> {
+  try {
+    return await apiClient.get<ReceiptResponse>(API_ENDPOINTS.JOB_RECEIPT(jobId));
   } catch (error) {
     throw toMuhrError(error);
   }

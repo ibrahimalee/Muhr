@@ -1,5 +1,7 @@
 import { useMemo } from "react";
 import { sats, seconds } from "@/lib/format";
+import { useRates } from "@/hooks/useRates";
+import { formatPkr } from "@/lib/pkr";
 import type { BuyerWalletStatus, DemoRunResponse, FeedEvent, JobSummary, MarketStats, SellerInfo } from "@/types/api";
 import type { JobTrack } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -11,6 +13,8 @@ import { CurvedBand } from "./CurvedBand";
 import { SectionTitle } from "./SectionTitle";
 import { Spark } from "./Spark";
 import { BentoGrid, CountUp, Tile } from "./Bento";
+import { Amount, PkrNote } from "./Amount";
+import { FeeComparison } from "./FeeComparison";
 
 function FigureTile({
   value,
@@ -35,6 +39,7 @@ function FigureTile({
       <div className="mt-5 text-[2.4rem] font-semibold leading-none tracking-[-0.02em]">
         <CountUp value={value} />
         {unit ? <span className="ml-1.5 text-sm font-normal tracking-normal text-graphite">{unit}</span> : null}
+        {unit === "sats" ? <PkrNote sats={value} className="mt-1.5 block text-sm font-normal tracking-normal" /> : null}
       </div>
       {spark && spark.length ? (
         <div className="-mx-5 -mb-5 mt-4">
@@ -76,6 +81,7 @@ export function OverviewView({
   volumeData: { h: string; v: number }[];
   htlcData: { h: string; created: number; settled: number }[];
 }) {
+  const { rates } = useRates();
   const active = sellers?.filter((s) => s.status === "active") ?? [];
   const avgMs = active.length ? active.reduce((a, s) => a + s.avg_response_ms, 0) / active.length : 0;
   const real = wallet?.available && wallet.mode.toUpperCase() === "REAL";
@@ -97,6 +103,13 @@ export function OverviewView({
   return (
     <div className="relative">
       <ProtocolStory data={scene} onRun={onRun} />
+
+      <section className="mt-16 lg:mt-24" aria-label="How it works">
+        <SectionTitle kicker="How it works" title="Agents hire agents. The work unlocks when it’s paid.">
+          Muhr is a marketplace where AI agents buy work from specialist agents and pay per job over Lightning, with no escrow and no trust in the
+          middle.
+        </SectionTitle>
+      </section>
 
       <section className="mt-16 lg:mt-24" aria-label="Latest job">
         <SectionTitle kicker="Live" title="The newest job, as it happens.">
@@ -139,6 +152,7 @@ export function OverviewView({
               <div className="mt-6 text-[3.4rem] font-semibold leading-none tracking-[-0.03em] md:text-[4.2rem]">
                 <CountUp value={wallet?.balance_sats ?? 0} />
                 <span className="ml-2 text-base font-normal tracking-normal text-graphite">sats</span>
+                <PkrNote sats={wallet?.balance_sats ?? 0} className="mt-2 block text-base font-normal tracking-normal" />
               </div>
               <p className="mt-3 max-w-[48ch] text-sm text-graphite">
                 {real
@@ -150,7 +164,7 @@ export function OverviewView({
                 {lastPaid ? (
                   <div className="flex justify-between border-t border-rule/80 py-2.5 text-sm">
                     <span className="text-graphite">Amount</span>
-                    <span className="num font-medium">{sats(lastPaid.amount)} sats</span>
+                    <Amount sats={lastPaid.amount} inline className="font-medium" />
                   </div>
                 ) : null}
               </dl>
@@ -198,7 +212,7 @@ export function OverviewView({
                   <dl className="divide-y divide-rule/80 self-start border-y border-rule/80">
                     <HashField stacked label="Job" value={result.job_id} />
                     <HashField stacked label="Result hash" value={result.result_hash} />
-                    <HashField stacked label={`Paid invoice, ${sats(result.budget_sats)} sats`} value={result.lightning_payment_hash} />
+                    <HashField stacked label={`Paid invoice, ${sats(result.budget_sats)} sats${rates ? ` (about ${formatPkr(result.budget_sats, rates.sats_pkr)})` : ""}`} value={result.lightning_payment_hash} />
                   </dl>
                 </div>
               </Tile>
@@ -214,6 +228,10 @@ export function OverviewView({
             </Tile>
           </div>
         </BentoGrid>
+
+        <div className="mt-6">
+          <FeeComparison />
+        </div>
       </section>
     </div>
   );
@@ -274,14 +292,18 @@ function VolumeSplit({ real, demo }: { real: number; demo: number }) {
             <span className="size-2.5 rounded-[2px] bg-[#2F4F8A]" aria-hidden />
             Real Lightning
           </dt>
-          <dd className="num font-medium">{sats(real)} sats</dd>
+          <dd className="font-medium">
+            <Amount sats={real} inline />
+          </dd>
         </div>
         <div className="flex items-center justify-between border-t border-rule/80 py-2">
           <dt className="flex items-center gap-2 text-graphite">
             <span className="size-2.5 rounded-[2px] bg-[#B08A3E]" aria-hidden />
             Demo invoices
           </dt>
-          <dd className="num font-medium">{sats(demo)} sats</dd>
+          <dd className="font-medium">
+            <Amount sats={demo} inline />
+          </dd>
         </div>
       </dl>
     </div>

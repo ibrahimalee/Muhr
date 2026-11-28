@@ -22,6 +22,8 @@ export const API_ENDPOINTS = {
   SELLERS_REGISTER: '/api/sellers/register',
   JOBS: '/api/jobs',
   STATS: '/api/stats',
+  RATES: '/api/rates',
+  JOB_RECEIPT: (jobId: string) => `/api/jobs/${jobId}/receipt`,
   TASKS: '/api/tasks',
   DEMO_RUN_E2E: '/api/demo/run_e2e',
   DEMO_HEALTH: '/api/demo/health',

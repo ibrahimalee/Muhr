@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { STAGES, capabilityLabel, clockTime, sats, shortHash, type JobTrack } from "@/lib/format";
 import { ModeMark } from "./primitives";
+import { Amount } from "./Amount";
 
 const N = STAGES.length;
 const LAST = N - 1;
@@ -85,11 +86,7 @@ export function JobLine({ track, onRun, loading }: { track: JobTrack; onRun?: ()
         </div>
         <div className="flex items-center gap-3 text-sm">
           <ModeMark mode={track.mode} />
-          {track.amount != null ? (
-            <span className="num font-semibold">
-              {sats(track.amount)} <span className="font-normal text-graphite">sats</span>
-            </span>
-          ) : null}
+          {track.amount != null ? <Amount sats={track.amount} inline className="font-semibold" /> : null}
           <span className={cn("text-xs", settled ? "text-settled" : track.broken ? "text-seal" : "text-graphite")}>
             {settled ? "Settled" : track.broken ? "Stopped" : track.reached >= 0 ? `Stage ${track.reached + 1} of ${N}` : ""}
           </span>

@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import { sats } from "@/lib/format";
 import { gsap, prefersReducedMotion, useGSAP } from "@/lib/motion";
 import { CountUp } from "./Bento";
+import { Amount, PkrNote } from "./Amount";
 
 const COBALT = "#2F4F8A";
 const BRASS = "#B08A3E";
@@ -139,7 +140,9 @@ export function MoneyFlow({ real, demo, gross, net, fee }: { real: number; demo:
                 <span className={cn("ml-1 text-xs font-normal tracking-normal", n.side === "m" ? "text-sheet/70" : "text-graphite")}>sats</span>
               </div>
               {n.h >= 96 || n.side === "m" ? (
-                <div className={cn("mt-1.5 text-2xs", n.side === "m" ? "text-sheet/60" : "text-graphite")}>{n.note}</div>
+                <div className={cn("mt-1.5 text-2xs", n.side === "m" ? "text-sheet/60" : "text-graphite")}>
+                  {n.note} <PkrNote sats={n.value} className={n.side === "m" ? "text-sheet/80" : "text-ink-soft"} />
+                </div>
               ) : null}
             </div>
           </div>
@@ -152,6 +155,7 @@ export function MoneyFlow({ real, demo, gross, net, fee }: { real: number; demo:
           <dt className="text-xs text-sheet/70">Gross paid</dt>
           <dd className="mt-1 text-[2rem] font-semibold leading-none">
             <CountUp value={gross} /> <span className="text-xs font-normal text-sheet/70">sats</span>
+            <PkrNote sats={gross} className="mt-1 block text-xs font-normal text-sheet/80" />
           </dd>
         </div>
         {[
@@ -166,7 +170,7 @@ export function MoneyFlow({ real, demo, gross, net, fee }: { real: number; demo:
                 <dd key={n.key} className="mt-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-graphite">{n.label}</span>
-                    <span className="num font-medium">{sats(n.value)} sats</span>
+                    <Amount sats={n.value} inline className="font-medium" />
                   </div>
                   <div className="mt-1 h-1.5 rounded-full bg-rule/70">
                     <div className="muhr-grow h-full rounded-full" style={{ width: `${tot ? (n.value / tot) * 100 : 0}%`, background: n.color }} />

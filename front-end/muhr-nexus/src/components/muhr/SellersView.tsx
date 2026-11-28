@@ -1,14 +1,15 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, Cloud, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { capabilityLabel, relativeTime, sats, seconds } from "@/lib/format";
+import { capabilityLabel, capabilityNative, relativeTime, sats, seconds } from "@/lib/format";
 import { Flip, gsap, prefersReducedMotion } from "@/lib/motion";
 import type { SellerInfo } from "@/types/api";
 import { EmptyNote } from "./primitives";
 import { BentoGrid, CountUp, Tile } from "./Bento";
 import { Segmented } from "./Segmented";
+import { PkrNote } from "./Amount";
 
 const REGISTER_CURL = `curl -X POST http://127.0.0.1:8000/api/sellers/register \\
   -H "Content-Type: application/json" \\
@@ -120,10 +121,29 @@ function SellerCard({ s }: { s: SellerInfo }) {
           <span className="text-2xs text-graphite">seen {relativeTime(s.last_seen)}</span>
         </div>
 
-        <h3 className="type-wide mt-4 text-[1.4rem] font-bold leading-tight">{capabilityLabel(s.capability)}</h3>
+        <div className="mt-4 flex flex-wrap items-baseline justify-between gap-x-3">
+          <h3 className="type-wide text-[1.4rem] font-bold leading-tight">{capabilityLabel(s.capability)}</h3>
+          {capabilityNative(s.capability) ? (
+            <span lang="ur" dir="rtl" className="font-urdu text-lg text-ink-soft">
+              {capabilityNative(s.capability)}
+            </span>
+          ) : null}
+        </div>
         <p className="mt-0.5 truncate text-xs text-graphite" title={s.endpoint_url}>
           <span className="hash text-2xs">{s.seller_id}</span> at {host(s.endpoint_url)}
         </p>
+
+        {s.private ? (
+          <p className="mt-3 inline-flex items-start gap-1.5 rounded-[4px] bg-settled-tint px-2 py-1 text-xs font-medium text-settled">
+            <Lock className="mt-px size-3.5 shrink-0" aria-hidden />
+            <span>Private: data never leaves this seller</span>
+          </p>
+        ) : (
+          <p className="mt-3 inline-flex items-start gap-1.5 text-xs text-graphite">
+            <Cloud className="mt-px size-3.5 shrink-0" aria-hidden />
+            <span>May use a hosted AI provider</span>
+          </p>
+        )}
 
         <div className="mt-5 flex items-center gap-5">
           <ReputationRing score={s.reputation_score} jobs={s.jobs_completed} />
@@ -133,6 +153,7 @@ function SellerCard({ s }: { s: SellerInfo }) {
               <dd className="mt-0.5">
                 <span className="num text-xl font-semibold tracking-tight">{sats(s.price_sats_per_unit)}</span>{" "}
                 <span className="text-xs text-graphite">sats {s.unit_definition}</span>
+                <PkrNote sats={s.price_sats_per_unit} className="mt-0.5 block text-xs" />
               </dd>
             </div>
             <div>
@@ -147,6 +168,7 @@ function SellerCard({ s }: { s: SellerInfo }) {
             <div className="text-xs text-graphite">Stake at risk</div>
             <div className="mt-0.5 text-lg font-semibold tracking-tight">
               <CountUp value={s.stake_sats} /> <span className="text-xs font-normal text-graphite">sats</span>
+              <PkrNote sats={s.stake_sats} className="block text-xs font-normal" />
             </div>
           </div>
           <StakeStack stake={s.stake_sats} />
@@ -252,7 +274,7 @@ export function SellersView({ sellers, loading, error, onRetry }: { sellers: Sel
           <div className="flex flex-wrap items-center justify-between gap-4">
             <p className="text-sm text-ink-soft">
               <span className="num font-semibold text-ink">{online}</span> of <span className="num">{sellers.length}</span> online, with{" "}
-              <span className="num font-semibold text-ink">{sats(staked)}</span> sats staked between them. A proven bad result costs a seller half its
+              <span className="num font-semibold text-ink">{sats(staked)}</span> sats staked between them (<PkrNote sats={staked} />). A proven bad result costs a seller half its
               stake.
             </p>
             <div className="flex flex-wrap items-center gap-3">

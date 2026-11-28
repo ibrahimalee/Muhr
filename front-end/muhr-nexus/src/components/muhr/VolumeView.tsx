@@ -6,6 +6,7 @@ import { EmptyNote, SectionHead } from "./primitives";
 import { BentoGrid, Tile } from "./Bento";
 import { MoneyFlow } from "./MoneyFlow";
 import { prefersReducedMotion } from "@/lib/motion";
+import { PkrNote } from "./Amount";
 
 /** Mounts its chart only once it scrolls into view, so the bars rise when they're seen. */
 function WhenSeen({ className, children }: { className?: string; children: (animate: boolean) => React.ReactNode }) {
@@ -52,6 +53,7 @@ function Tip({ active, label, payload, unit }: TipProps & { unit: string }) {
           <span className="text-graphite">{p.name}</span>
           <span className="num ml-auto pl-3 font-medium">
             {sats(p.value ?? 0)} {unit}
+            {unit === "sats" ? <PkrNote sats={p.value ?? 0} className="ml-2 font-normal" /> : null}
           </span>
         </div>
       ))}

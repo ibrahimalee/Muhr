@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&family=IBM+Plex+Mono:wght@400;500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&family=IBM+Plex+Mono:wght@400;500&family=Noto+Nastaliq+Urdu:wght@400;600&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -82,6 +82,23 @@
   }
   .num {
     font-variant-numeric: tabular-nums lining-nums;
+  }
+  /* Urdu script: Nastaliq first, then system Arabic-script fonts. Nastaliq is tall, so the
+     line box is opened up and the text kept inline so it never stretches a card. */
+  .font-urdu {
+    font-family: "Noto Nastaliq Urdu", "Jameel Noori Nastaleeq", "Noto Naskh Arabic", "Segoe UI", Tahoma, serif;
+    font-feature-settings: normal;
+    font-variation-settings: normal;
+    line-height: 1.9;
+    unicode-bidi: isolate;
+  }
+  @media print {
+    .no-print {
+      display: none !important;
+    }
+    body {
+      background: #fff;
+    }
   }
   .hash {
     font-family: "IBM Plex Mono", ui-monospace, monospace;

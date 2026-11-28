@@ -12,10 +12,19 @@ export function shortHash(value: string | null | undefined, head = 8, tail = 6):
   return `${value.slice(0, head)}…${value.slice(-tail)}`;
 }
 
+const CAPABILITY_NAMES: Record<string, string> = { urdu_translation: "Urdu Translation" };
+const CAPABILITY_NATIVE: Record<string, string> = { urdu_translation: "اردو ترجمہ" };
+
 export function capabilityLabel(cap: string | null | undefined): string {
   if (!cap) return "Unknown capability";
+  if (CAPABILITY_NAMES[cap]) return CAPABILITY_NAMES[cap];
   const s = cap.replace(/_/g, " ");
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/** The capability's name in its own script, when it has one (rendered right-to-left). */
+export function capabilityNative(cap: string | null | undefined): string | null {
+  return (cap && CAPABILITY_NATIVE[cap]) || null;
 }
 
 export function clockTime(iso: string | null | undefined): string {
@@ -193,6 +202,7 @@ export const EVENT_LABELS: Record<string, string> = {
   result_delivered: "Encrypted result committed",
   htlc_opened: "Invoice issued",
   lightning_paid: "Invoice paid",
+  key_released: "Result key released",
   payment_settled: "Job settled",
   reputation_updated: "Reputation updated",
   stake_slashed: "Stake slashed",

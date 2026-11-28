@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { sats, shortHash } from "@/lib/format";
 import { WaxSeal } from "./WaxSeal";
+import { Amount } from "./Amount";
 
 /*
  * The protocol, as one object. Coordinates live in a 600 x 540 box so the SVG overlay
@@ -90,7 +91,16 @@ export function Envelope({ data, sealed = false, className }: { data: SceneData;
               <div key={i} className="h-1.5 rounded bg-ink/70" style={{ width: `${w}%`, opacity: i ? 0.55 : 1 }} />
             ))}
           </div>
-          <div className="num mt-3 text-sm font-semibold">{data.amount != null ? `${sats(data.amount)} sats paid` : "Paid on delivery"}</div>
+          <div className="mt-3 text-sm font-semibold">
+            {data.amount != null ? (
+              <>
+                <span className="font-normal text-graphite">Paid </span>
+                <Amount sats={data.amount} inline />
+              </>
+            ) : (
+              "Paid on delivery"
+            )}
+          </div>
         </div>
 
         {/* front pocket: bottom and side folds */}
@@ -152,7 +162,7 @@ export function Envelope({ data, sealed = false, className }: { data: SceneData;
           <span>Checked</span>
         </div>
         <div className="num mt-1.5 text-xl font-semibold leading-none">
-          {data.amount != null ? sats(data.amount) : "–"} <span className="text-xs font-normal text-graphite">sats</span>
+          {data.amount != null ? <Amount sats={data.amount} inline pkrClassName="text-xs font-normal" /> : "–"}
         </div>
         <div className="hash mt-2 truncate text-2xs text-graphite">{data.paymentHash ? shortHash(data.paymentHash, 10, 8) : "lnbc…"}</div>
         <div

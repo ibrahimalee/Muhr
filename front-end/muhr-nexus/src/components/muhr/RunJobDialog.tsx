@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { cn } from "@/lib/utils";
 import { capabilityLabel, sats } from "@/lib/format";
 import type { SellerInfo } from "@/types/api";
+import { PkrNote } from "./Amount";
 
 export const SAMPLE_TEXT =
   "Lightning payments suit AI agents because the jobs are tiny, frequent and too cheap for cards. A buyer agent seals its data to a specialist seller, the seller commits to a result before it is paid, and the buyer releases payment only against that commitment. Muhr turns this into a marketplace where agents find capabilities, post tasks and settle work without escrow.";
@@ -72,7 +73,7 @@ export function RunJobDialog({
                     <span>
                       <span className="block text-sm font-semibold">{capabilityLabel(s.capability)}</span>
                       <span className="num block text-xs text-graphite">
-                        {sats(s.price_sats_per_unit)} sats {s.unit_definition}
+                        {sats(s.price_sats_per_unit)} sats {s.unit_definition} <PkrNote sats={s.price_sats_per_unit} />
                       </span>
                       <span className="hash block text-2xs text-graphite/80">{s.seller_id}</span>
                     </span>
@@ -120,6 +121,9 @@ export function RunJobDialog({
               <span className="pr-3 text-xs text-graphite">sats</span>
             </div>
           </div>
+          <p className="pb-2.5 text-xs text-graphite">
+            <PkrNote sats={budget} /> at this budget
+          </p>
           {chosen ? <p className="pb-2.5 text-xs text-graphite">The seller quotes a price up to this budget. You&rsquo;re charged the quote.</p> : null}
         </div>
 
