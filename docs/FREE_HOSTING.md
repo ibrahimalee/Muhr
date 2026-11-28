@@ -11,6 +11,13 @@ money moves.
     └──────► Hugging Face Space (registry on :7860, sellers on localhost)
 ```
 
+**Do it in this order.** The dashboard needs the Space's address, and the Space needs the
+dashboard's address, so start with a setting that allows any address and tighten it at the end:
+
+1. Create the Space with `MUHR_CORS_ALLOW_ORIGINS` set to `*` (section 1).
+2. Deploy the dashboard on Vercel with `VITE_API_BASE_URL` set to the Space address (section 2).
+3. Go back to the Space and replace `*` with the real Vercel address (section 3).
+
 ## 1. Backend on Hugging Face
 
 Hugging Face has no free normal server hardware for new Gradio or Docker Spaces. The one free
@@ -25,16 +32,26 @@ never called. (A Dockerfile for accounts that do have Docker Spaces is in
 2. In the Space, **Files → Add file → Upload files**, and upload the two files from
    [`deploy/huggingface/`](../deploy/huggingface/): `app.py` and `README.md`. Replace the template's
    own `app.py` and `README.md`. The README header tells Hugging Face to run `app.py` on Python 3.12.
-3. **Settings → Variables and secrets**, add a **variable**:
+3. **Settings → Variables and secrets**, add these. Variables are visible to anyone who can see the
+   Space settings; **secrets** are hidden, so keys always go in secrets.
 
-   | Name | Value |
-   | --- | --- |
-   | `MUHR_CORS_ALLOW_ORIGINS` | your Vercel address, e.g. `https://muhr.vercel.app` (comma-separate several), or `*` while testing |
+   | Kind | Name | Value |
+   | --- | --- | --- |
+   | variable | `MUHR_CORS_ALLOW_ORIGINS` | `*` for now (replaced in section 3) |
+   | variable | `LLM_BASE_URL` | the AI provider's address, e.g. `https://api.groq.com/openai/v1` |
+   | variable | `LLM_MODEL` | e.g. `openai/gpt-oss-120b` |
+   | **secret** | `LLM_API_KEYS` | your keys on one line, separated by commas, no spaces |
 
-   Optional **secrets**: `GROQ_API_KEY` and `GEMINI_API_KEY` for real AI answers. Leave them out and
-   the sellers use the built-in offline pipeline. The admin key and seller keys are generated on every
-   start; set `MUHR_ADMIN_KEY` and `MUHR_SELLER_KEY_SEL_SUMMARIZER`, `_SEL_CLASSIFIER`, `_SEL_URDU`
-   as secrets only if you want fixed values.
+   The three `LLM_` settings are optional: leave them out and the sellers use the built-in offline
+   pipeline (the Urdu seller then returns a placeholder instead of a real translation). With several
+   keys, each job starts on the next key; a key that is rate-limited (HTTP 429) rests for a while, a
+   timeout or server error moves on to the next key, and a key the provider rejects is dropped until
+   the Space restarts. Hosted AI providers see the decrypted input of every job.
+   You can check the same settings from your own machine first with `python scripts/check_llm.py`
+   (it never prints a key). The older single `GROQ_API_KEY` and `GEMINI_API_KEY` secrets still work and
+   are tried after the list. The admin key and seller keys are generated on every start; set
+   `MUHR_ADMIN_KEY` and `MUHR_SELLER_KEY_SEL_SUMMARIZER`, `_SEL_CLASSIFIER`, `_SEL_URDU` as secrets only
+   if you want fixed values.
 4. The Space starts (the first start takes a couple of minutes: it downloads the code and installs
    the packages; watch **Logs**). When it says *Running*, open
    `https://<user>-<space>.hf.space/health`. It should answer `{"status":"healthy",...}`; until the
@@ -58,10 +75,17 @@ internal port; that script starts the three sellers and the registry, and exits 
 4. Deploy. Direct links such as `/receipt/<job_id>` and `/?pitch=1` work because `vercel.json`
    falls back to `index.html`.
 
-If the Vercel address changes (custom domain, new project), update `MUHR_CORS_ALLOW_ORIGINS` on the
-Space; the Space restarts when a variable changes.
+Vercel shows the project's address when the deploy finishes, e.g. `https://muhr.vercel.app`.
 
-## 3. Check it
+## 3. Tighten the Space's setting
+
+Back on the Space, **Settings → Variables and secrets**, change `MUHR_CORS_ALLOW_ORIGINS` from `*` to
+your Vercel address. To allow several (a custom domain, for example), separate them with commas. The
+Space restarts when a variable changes, so wait for *Running* again. Vercel's preview links each have
+their own address; if you use them, keep `*` or list each one. The API has no logins or cookies, so
+`*` is acceptable for a demo; it only means any website's page may call it.
+
+## 4. Check it
 
 Open the Vercel address: the Overview, Jobs, Sellers and Volume pages should fill with sample data.
 Open `/?pitch=1`, run a preset, and watch the eight stages light up. In the job's receipt, **Verify**
