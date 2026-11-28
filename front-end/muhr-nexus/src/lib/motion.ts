@@ -64,9 +64,9 @@ export { gsap, Flip, ScrollTrigger, useGSAP };
  * scroll position always agree. Off with reduced motion and on touch devices, where
  * native scrolling already feels right.
  */
-export function useSmoothScroll() {
+export function useSmoothScroll(enabled = true) {
   useEffect(() => {
-    if (prefersReducedMotion() || !query("(hover: hover) and (pointer: fine)")?.matches) return;
+    if (!enabled || prefersReducedMotion() || !query("(hover: hover) and (pointer: fine)")?.matches) return;
     let lenis: import("lenis").default | null = null;
     let tick: ((t: number) => void) | null = null;
     let cancelled = false;
@@ -83,7 +83,7 @@ export function useSmoothScroll() {
       if (tick) gsap.ticker.remove(tick);
       lenis?.destroy();
     };
-  }, []);
+  }, [enabled]);
 }
 
 /** Scroll to an element (smoothly when Lenis is running). */

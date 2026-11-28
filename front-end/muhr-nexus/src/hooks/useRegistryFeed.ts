@@ -46,6 +46,9 @@ export function useRegistryFeed() {
           setStatus("error");
           setReconnects((n) => n + 1);
           reconnectTimer = setTimeout(attach, 1_200);
+        } else {
+          // The browser is retrying on its own: show that instead of staying "open".
+          setStatus("connecting");
         }
       };
     };

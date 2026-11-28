@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useMuhrRegistry } from "@/hooks/useMuhrRegistry";
 import { useRegistryFeed } from "@/hooks/useRegistryFeed";
+import { useRates } from "@/hooks/useRates";
+import { formatPkr } from "@/lib/pkr";
 import { buildHtlcFromJobs, buildProviderMix, buildVolumeFromJobs } from "@/lib/chartData";
 import { capabilityLabel, latestJobTrack, sats } from "@/lib/format";
 import { formatApiError, getDemoHealth, runDemoE2E } from "@/lib/muhrApi";
@@ -15,6 +17,8 @@ import { JobsView } from "@/components/muhr/JobsView";
 import { SellersView } from "@/components/muhr/SellersView";
 import { VolumeView } from "@/components/muhr/VolumeView";
 import { RunJobDialog } from "@/components/muhr/RunJobDialog";
+import { PitchView } from "@/components/muhr/PitchView";
+import type { PitchPreset } from "@/lib/pitch";
 import { KineticHeadline } from "@/components/muhr/KineticHeadline";
 import { gsap, prefersReducedMotion, ScrollTrigger, scrollToTop, useSmoothScroll } from "@/lib/motion";
 
@@ -54,9 +58,13 @@ export default function Index() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<DemoRunResponse | null>(null);
   const [demoHealth, setDemoHealth] = useState<DemoHealthResponse | null>(null);
+  // Pitch mode: ?pitch=1, or press P. Nothing is stored; a reload goes back to what the URL says.
+  const [pitch, setPitch] = useState(() => new URLSearchParams(window.location.search).get("pitch") === "1");
+  const [pitchError, setPitchError] = useState<string | null>(null);
 
   const { health, stats, sellers, jobs, isLoading, hasError, refetch, demoMode, buyerWallet } = useMuhrRegistry({ jobsLimit: 200 });
   const { events, status: feedStatus, reconnects } = useRegistryFeed();
+  const { rates } = useRates();
 
   useEffect(() => {
     const onHash = () => {
@@ -73,7 +81,18 @@ export default function Index() {
     scrollToTop();
   };
 
-  useSmoothScroll();
+  useSmoothScroll(!pitch);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== "p" || e.ctrlKey || e.metaKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName))) return;
+      setPitch((v) => !v);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // Header tightens once the page is scrolled.
   const headerRef = useRef<HTMLElement>(null);
@@ -171,7 +190,7 @@ export default function Index() {
       try {
         const r = await runDemoE2E({ input_text: text, seller_id: sellerId, budget_sats: budget });
         setResult(r);
-        toast.success("Job settled", { description: `${sats(r.budget_sats)} sats paid to ${sellerName(r.seller_id)}. The result is below.` });
+        toast.success("Job settled", { description: `${sats(r.budget_sats)} sats${rates ? ` (about ${formatPkr(r.budget_sats, rates.sats_pkr)})` : ""} paid to ${sellerName(r.seller_id)}. The result is below.` });
         refetch();
       } catch (e) {
         toast.error("The job didn't finish", { description: formatApiError(e, { ifAbort: "longDemo" }).slice(0, 400) });
@@ -179,7 +198,25 @@ export default function Index() {
         setBusy(false);
       }
     },
-    [busy, refetch, sellerName],
+    [busy, refetch, sellerName, rates],
+  );
+
+  const runPreset = useCallback(
+    async (p: PitchPreset) => {
+      if (busy) return;
+      setBusy(true);
+      setPitchError(null);
+      setResult(null);
+      try {
+        setResult(await runDemoE2E({ input_text: p.text, seller_id: p.sellerId, budget_sats: p.budget }));
+        refetch();
+      } catch (e) {
+        setPitchError(formatApiError(e, { ifAbort: "longDemo" }).slice(0, 300));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [busy, refetch],
   );
 
   const healthy = health?.status === "healthy";
@@ -193,6 +230,22 @@ export default function Index() {
           : { text: "Feed reconnecting", dot: "bg-pending" };
 
   const current = NAV.find((n) => n.id === view)!;
+
+  if (pitch) {
+    return (
+      <PitchView
+        events={events}
+        feedStatus={feedStatus}
+        jobs={jobs}
+        demoMode={demoMode}
+        busy={busy}
+        result={result}
+        error={pitchError}
+        onRun={(p) => void runPreset(p)}
+        onExit={() => setPitch(false)}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen">
@@ -327,7 +380,12 @@ export default function Index() {
 
       <footer className="border-t border-rule">
         <div className="mx-auto flex max-w-[1240px] flex-wrap justify-between gap-2 px-4 py-6 text-xs text-graphite sm:px-6">
-          <span>Muhr protocol. Sealed input, committed results, payment-released keys.</span>
+          <span>
+            Muhr protocol. Sealed input, committed results, payment-released keys. Built in Pakistan.{" "}
+            <span className="whitespace-nowrap">
+              Muhr (<span lang="ur" dir="rtl" className="font-urdu">مہر</span>) means seal.
+            </span>
+          </span>
           <span>{stats ? `Updated ${new Date(stats.generated_at).toLocaleTimeString("en-GB")}` : null}</span>
         </div>
       </footer>
