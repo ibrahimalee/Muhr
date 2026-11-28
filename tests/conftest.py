@@ -28,6 +28,8 @@ os.environ.update({
     "MUHR_SELLER_URDU_URL": "http://urdu.test",
     "MUHR_FORCE_OFFLINE": "1",
     "GROQ_API_KEY": "",
+    "LLM_BASE_URL": "",
+    "LLM_API_KEYS": "",
     "GEMINI_API_KEY": "",
     "MUHR_ADMIN_KEY": "",
     "MUHR_SELLER_KEY": "",

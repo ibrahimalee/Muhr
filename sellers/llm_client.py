@@ -1,5 +1,12 @@
-"""LLM providers for MUHR sellers: Groq (primary) -> Gemini (fallback), a local LM Studio
-model, or offline.
+"""LLM providers for MUHR sellers, tried in this order: any OpenAI-compatible API with several
+rotating keys (``LLM_BASE_URL`` / ``LLM_API_KEYS`` / ``LLM_MODEL``), then Groq, then Gemini. A
+seller can instead use a local LM Studio model, or run offline.
+
+Key rotation: each job starts on the next key in the list. A key that gets HTTP 429 rests for the
+time the provider asks (or ``LLM_COOLDOWN_SECONDS``); timeouts and 5xx move on to the next key; a
+key the provider rejects (401/403) is dropped until the process restarts. A bad request (400) is
+not retried, because it would fail on every key. One job never spends longer than
+``LLM_TOTAL_BUDGET_SECONDS`` across keys. Keys are never logged or put in error messages.
 
 Privacy note: with a hosted provider configured, the seller forwards the decrypted
 input to that provider. Run the seller in ``offline`` pipeline mode (or with
@@ -19,7 +26,11 @@ import json
 import logging
 import os
 import re
+import threading
+import time
 from dataclasses import dataclass
+
+import httpx
 
 from shared.constants import env_flag
 from shared.http import async_client
@@ -28,6 +39,7 @@ logger = logging.getLogger(__name__)
 
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+DEFAULT_LLM_MODEL = "openai/gpt-oss-120b"
 DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
 DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
 DEFAULT_LMSTUDIO_URL = "http://127.0.0.1:1234/v1"
@@ -63,6 +75,32 @@ def _gemini_key() -> str:
     return os.getenv("GEMINI_API_KEY", "").strip()
 
 
+def _llm_base_url() -> str:
+    return os.getenv("LLM_BASE_URL", "").strip().rstrip("/")
+
+
+def _llm_keys() -> list[str]:
+    """``LLM_API_KEYS``: keys separated by commas. Blanks and repeats are ignored."""
+    keys: list[str] = []
+    for k in os.getenv("LLM_API_KEYS", "").split(","):
+        k = k.strip()
+        if k and k not in keys:
+            keys.append(k)
+    return keys
+
+
+def _llm_model() -> str:
+    return os.getenv("LLM_MODEL", "").strip() or DEFAULT_LLM_MODEL
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        v = float(os.getenv(name, "").strip())
+    except ValueError:
+        return default
+    return v if v > 0 else default
+
+
 def lmstudio_url() -> str:
     return os.getenv("MUHR_LMSTUDIO_URL", "").strip().rstrip("/") or DEFAULT_LMSTUDIO_URL
 
@@ -82,6 +120,8 @@ def configured_providers(seller_id: str | None = None) -> list[Provider]:
         model = os.getenv("MUHR_LMSTUDIO_MODEL", "").strip() or DEFAULT_LMSTUDIO_MODEL
         return [Provider("lmstudio", model)]
     out: list[Provider] = []
+    if _llm_base_url() and _llm_keys():
+        out.append(Provider("llm", _llm_model()))
     if _groq_key():
         out.append(Provider("groq", os.getenv("GROQ_MODEL", DEFAULT_GROQ_MODEL).strip()))
     if _gemini_key():
@@ -162,7 +202,115 @@ async def _call_lmstudio(model: str, prompt: str, max_tokens: int, temperature: 
     return content.strip()
 
 
-_CALLS = {"groq": _call_groq, "gemini": _call_gemini, "lmstudio": _call_lmstudio}
+class _KeyPool:
+    """Rotation state for ``LLM_API_KEYS`` (one per process; the sellers are separate processes)."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._turn = 0
+        self._resting: dict[str, float] = {}
+        self._rejected: set[str] = set()
+
+    def reset(self) -> None:
+        with self._lock:
+            self._turn = 0
+            self._resting.clear()
+            self._rejected.clear()
+
+    def usable(self, keys: list[str]) -> tuple[list[str], float | None]:
+        """Keys to try now, starting after the one the previous job started on.
+        Also returns how long until the soonest resting key is free (None if none is resting)."""
+        now = time.monotonic()
+        with self._lock:
+            live = [k for k in keys if k not in self._rejected]
+            if not live:
+                return [], None
+            start = self._turn % len(live)
+            self._turn += 1
+            ordered = live[start:] + live[:start]
+            ready = [k for k in ordered if self._resting.get(k, 0.0) <= now]
+            waits = [self._resting[k] - now for k in live if self._resting.get(k, 0.0) > now]
+            return ready, (min(waits) if waits else None)
+
+    def rest(self, key: str, seconds: float) -> None:
+        with self._lock:
+            self._resting[key] = time.monotonic() + seconds
+
+    def reject(self, key: str) -> None:
+        with self._lock:
+            self._rejected.add(key)
+
+
+_POOL = _KeyPool()
+
+
+def _retry_after(r: httpx.Response, default: float) -> float:
+    try:
+        return max(1.0, min(float(r.headers.get("retry-after", "")), 300.0))
+    except ValueError:
+        return default
+
+
+async def _call_llm(model: str, prompt: str, max_tokens: int, temperature: float, system: str | None = None) -> str:
+    """An OpenAI-compatible chat API with a rotating list of keys (see the module docstring)."""
+    base, keys = _llm_base_url(), _llm_keys()
+    payload = {"model": model, "messages": _chat_messages(prompt, system),
+               "max_tokens": max_tokens, "temperature": temperature}
+    effort = os.getenv("LLM_REASONING_EFFORT", "").strip().lower() or ("low" if "gpt-oss" in model else "")
+    if effort and effort != "none":
+        payload["reasoning_effort"] = effort  # keeps reasoning models from spending the token limit thinking
+    attempt_timeout = _env_float("LLM_TIMEOUT_SECONDS", 20.0)
+    deadline = time.monotonic() + _env_float("LLM_TOTAL_BUDGET_SECONDS", 60.0)
+    cooldown = _env_float("LLM_COOLDOWN_SECONDS", 60.0)
+
+    candidates, soonest = _POOL.usable(keys)
+    if not candidates:
+        if soonest is None:
+            raise LLMClientError("LLM: no usable key (every key was rejected)")
+        raise LLMClientError(f"LLM: every key is rate-limited (next one free in about {int(soonest) + 1}s)")
+
+    notes: list[str] = []
+    for key in candidates:
+        left = deadline - time.monotonic()
+        if left <= 0.5:
+            notes.append("time budget used up")
+            break
+        label = f"key {keys.index(key) + 1}/{len(keys)}"
+        try:
+            async with async_client(timeout=min(attempt_timeout, left)) as client:
+                r = await client.post(f"{base}/chat/completions", json=payload,
+                                      headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
+        except (httpx.TimeoutException, httpx.TransportError) as e:
+            _POOL.rest(key, 10.0)
+            notes.append(f"{label}: {e.__class__.__name__}")
+            logger.warning("LLM %s failed: %s", label, e.__class__.__name__)
+            continue
+        code = r.status_code
+        if code == 200:
+            choices = r.json().get("choices") or []
+            content = (choices[0].get("message") or {}).get("content") or "" if choices else ""
+            if not content.strip():
+                raise LLMClientError("LLM returned no content")
+            return content.strip()
+        if code == 429:
+            _POOL.rest(key, _retry_after(r, cooldown))
+            notes.append(f"{label}: rate limited")
+            logger.warning("LLM %s is rate limited; trying the next key", label)
+            continue
+        if code in (401, 403):
+            _POOL.reject(key)
+            notes.append(f"{label}: rejected (HTTP {code})")
+            logger.warning("LLM %s was rejected (HTTP %s); not using it again until restart", label, code)
+            continue
+        if code >= 500 or code == 408:
+            _POOL.rest(key, 10.0)
+            notes.append(f"{label}: HTTP {code}")
+            continue
+        raise LLMClientError(f"LLM HTTP {code}")  # a bad request would fail on every key
+    raise LLMClientError("LLM: " + "; ".join(notes))
+
+
+_CALLS = {"llm": _call_llm, "groq": _call_groq, "gemini": _call_gemini, "lmstudio": _call_lmstudio}
 
 
 async def get_llm_response(prompt: str, max_tokens: int = 500, temperature: float = 0.3,
