@@ -1,0 +1,83 @@
+# Full MUHR stack: registry + both sellers + static UI (nginx).
+#
+#   docker compose up --build        then open http://localhost:${MUHR_COMPOSE_PORT:-80}
+#
+# Secrets/config come from the repo-root .env if present (optional). Outside DEMO
+# set real values for MUHR_ADMIN_KEY and both MUHR_SELLER_KEY_* variables.
+# SQLite lives in the named volume `muhr_registry_data`.
+
+x-common-env: &common-env
+  DEMO_MODE: ${DEMO_MODE:-true}
+  MUHR_REGISTRY_BASE_URL: http://registry:8000
+  MUHR_SELLER_SUMMARIZER_URL: ${MUHR_SELLER_SUMMARIZER_URL:-http://summarizer:8001}
+  MUHR_SELLER_CLASSIFIER_URL: ${MUHR_SELLER_CLASSIFIER_URL:-http://classifier:8002}
+
+services:
+  summarizer:
+    build:
+      context: .
+      dockerfile: sellers/summarizer/Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      <<: *common-env
+      MUHR_SELLER_ID: sel_summarizer
+      MUHR_SELLER_KEY: ${MUHR_SELLER_KEY_SEL_SUMMARIZER:-}
+    expose:
+      - "8001"
+    restart: unless-stopped
+
+  classifier:
+    build:
+      context: .
+      dockerfile: sellers/classifier/Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      <<: *common-env
+      MUHR_SELLER_ID: sel_classifier
+      MUHR_SELLER_KEY: ${MUHR_SELLER_KEY_SEL_CLASSIFIER:-}
+    expose:
+      - "8002"
+    restart: unless-stopped
+
+  registry:
+    build:
+      context: .
+      dockerfile: registry/Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      <<: *common-env
+      DATABASE_URL: sqlite:////app/data/muhr.db
+      MUHR_REGISTRY_INTERNAL_URL: http://registry:8000
+      MUHR_CORS_ALLOW_ORIGINS: ${MUHR_CORS_ALLOW_ORIGINS:-}
+      # nginx sits in front: trust only the hop it appends to X-Forwarded-For.
+      MUHR_TRUST_PROXY: "true"
+      MUHR_SELLER_KEY_SEL_SUMMARIZER: ${MUHR_SELLER_KEY_SEL_SUMMARIZER:-}
+      MUHR_SELLER_KEY_SEL_CLASSIFIER: ${MUHR_SELLER_KEY_SEL_CLASSIFIER:-}
+      MUHR_ADMIN_KEY: ${MUHR_ADMIN_KEY:-}
+    depends_on:
+      - summarizer
+      - classifier
+    volumes:
+      - muhr_registry_data:/app/data
+    expose:
+      - "8000"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+    ports:
+      - "${MUHR_COMPOSE_PORT:-80}:80"
+    depends_on:
+      - registry
+    restart: unless-stopped
+
+volumes:
+  muhr_registry_data:

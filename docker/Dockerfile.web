@@ -1,0 +1,15 @@
+# Build MUHR Nexus (Vite) and serve with nginx, proxying /api to the registry.
+# Same-origin: leave VITE_API_BASE_URL empty so the browser uses relative /api.
+
+FROM node:20-alpine AS fe
+WORKDIR /fe
+COPY front-end/muhr-nexus/package.json front-end/muhr-nexus/package-lock.json ./
+RUN npm ci
+COPY front-end/muhr-nexus/ ./
+ENV VITE_API_BASE_URL=
+RUN npm run build
+
+FROM nginx:1.25-alpine
+COPY docker/nginx-muhr.conf /etc/nginx/conf.d/default.conf
+COPY --from=fe /fe/dist /usr/share/nginx/html
+EXPOSE 80
