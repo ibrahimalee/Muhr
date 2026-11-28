@@ -20,7 +20,7 @@ import { RunJobDialog } from "@/components/muhr/RunJobDialog";
 import { PitchView } from "@/components/muhr/PitchView";
 import type { PitchPreset } from "@/lib/pitch";
 import { KineticHeadline } from "@/components/muhr/KineticHeadline";
-import { gsap, prefersReducedMotion, ScrollTrigger, scrollToTop, useSmoothScroll } from "@/lib/motion";
+import { gsap, prefersReducedMotion, ScrollTrigger, scrollToEl, scrollToTop, useSmoothScroll } from "@/lib/motion";
 
 type View = "overview" | "jobs" | "sellers" | "volume";
 
@@ -190,6 +190,8 @@ export default function Index() {
       try {
         const r = await runDemoE2E({ input_text: text, seller_id: sellerId, budget_sats: budget });
         setResult(r);
+        // The result card is far down the Overview page: bring it into view once it has rendered.
+        window.setTimeout(() => scrollToEl(document.querySelector('[aria-label="Your last result"]'), -90), 500);
         toast.success("Job settled", { description: `${sats(r.budget_sats)} sats${rates ? ` (about ${formatPkr(r.budget_sats, rates.sats_pkr)})` : ""} paid to ${sellerName(r.seller_id)}. The result is below.` });
         refetch();
       } catch (e) {
